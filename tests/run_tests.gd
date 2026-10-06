@@ -32,6 +32,12 @@ func _process(delta: float) -> bool:
 
 func _run_all() -> void:
 	var files := _find_test_files()
+	# Optional substring filter on the suite file name, e.g. TEST_FILTER=test_bot.
+	var filter_text := OS.get_environment("TEST_FILTER")
+	if filter_text != "":
+		files = files.filter(
+			func(path: String) -> bool: return path.get_file().contains(filter_text)
+		)
 	if files.is_empty():
 		push_error("No tests/test_*.gd files found")
 		quit(1)

@@ -1,8 +1,10 @@
-node_modules/
-dist/
-coverage/
-playwright-report/
-test-results/
-.vite/
+# Godot 4 editor cache and imported resources
+.godot/
+# Export output and profiling
+export/
+*.tmp
+# Local tooling
+.venv/
+__pycache__/
 *.log
 .DS_Store

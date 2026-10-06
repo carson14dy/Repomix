@@ -66,7 +66,7 @@ func test_fast_fall_control_without_down(ctx: TestContext) -> void:
 	ctx.check_near(player.velocity.y, 500.0, 15.0, "without down gravity stays 1x (500)")
 
 
-func test_fast_fall_while_rising(ctx: TestContext) -> void:
+func test_down_while_rising_does_not_fast_fall(ctx: TestContext) -> void:
 	ctx.make_floor(GROUND_CENTER)
 	var player := await _grounded_player(ctx)
 	ctx.press("p1_jump")
@@ -75,7 +75,31 @@ func test_fast_fall_while_rising(ctx: TestContext) -> void:
 	ctx.check_near(player.velocity.y, -620.0, 1.0, "grounded jump sets jump_velocity -620")
 	ctx.press("p1_down")
 	await ctx.step(10)
-	ctx.check_near(player.velocity.y, 5.0, 20.0, "down while rising adds 2.5x gravity (-620 + 625)")
+	ctx.check_near(
+		player.velocity.y, -370.0, 20.0, "down while rising keeps 1x gravity (-620 + 250)"
+	)
+
+
+func test_fast_fall_engages_after_apex(ctx: TestContext) -> void:
+	ctx.make_floor(GROUND_CENTER)
+	var player := await _grounded_player(ctx)
+	ctx.press("p1_jump")
+	await ctx.step(1)
+	ctx.release("p1_jump")
+	ctx.press("p1_down")
+	var frames := 0
+	while player.velocity.y < 0.0 and frames < 40:
+		await ctx.step(1)
+		frames += 1
+	ctx.check(frames < 40, "jump reaches its apex within 40 frames while holding down")
+	var apex_velocity := player.velocity.y
+	await ctx.step(10)
+	ctx.check_near(
+		player.velocity.y,
+		apex_velocity + 625.0,
+		20.0,
+		"after the apex, holding down applies 2.5x gravity (+625 over 10 frames)"
+	)
 
 
 func test_rising_without_down(ctx: TestContext) -> void:

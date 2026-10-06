@@ -117,8 +117,9 @@ func _apply_horizontal(axis: float, on_floor: bool, delta: float) -> void:
 
 
 func _apply_gravity(down_held: bool, delta: float) -> void:
-	# Literal spec: holding down in mid-air increases gravity, whether rising or falling.
-	var fast_falling := down_held
+	# Fast-fall only once the fighter is no longer rising: a jump's upward arc is never cut
+	# short by holding down. Engages at the apex (velocity.y == 0) or any time while falling.
+	var fast_falling := down_held and velocity.y >= 0.0
 	var g := gravity * (fast_fall_gravity_multiplier if fast_falling else 1.0)
 	var cap := fast_fall_max_speed if fast_falling else max_fall_speed
 	velocity.y = minf(velocity.y + g * delta, cap)

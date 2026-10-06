@@ -72,7 +72,7 @@ Inspector. Units: px, px/s, px/s², physics frames at 60 Hz.
 | `air_friction`                | 320.0   | px/s²    | toward zero while airborne, no input (slight resistance) |
 | `gravity`                     | 1500.0  | px/s²    | downward acceleration while airborne |
 | `max_fall_speed`              | 900.0   | px/s     | normal terminal velocity |
-| `fast_fall_gravity_multiplier`| 2.5     | ×        | gravity multiplier while holding down in the air |
+| `fast_fall_gravity_multiplier`| 2.5     | ×        | gravity multiplier while holding down in the air, once no longer rising |
 | `fast_fall_max_speed`         | 1500.0  | px/s     | terminal velocity while fast-falling |
 | `jump_velocity`               | -620.0  | px/s     | initial vertical speed of a jump (up is negative) |
 | `jump_buffer_frames`          | 6       | frames   | a jump pressed this many frames before landing still fires |
@@ -122,8 +122,9 @@ Implemented:
 - Two players on one keyboard or on two joypads, through the `p1_*` / `p2_*` InputMap actions.
 - Platform-fighter movement: run with separate ground and air acceleration, ground friction,
   **air friction** (slight horizontal resistance when no direction is held in the air),
-  gravity with a terminal velocity, **fast-falling** (holding down in the air multiplies
-  gravity and raises the fall cap), and **jump buffering** (a jump pressed up to 6 frames
+  gravity with a terminal velocity, **fast-falling** (holding down in the air once you are no
+  longer rising multiplies gravity and raises the fall cap; it never cuts a jump short), and
+  **jump buffering** (a jump pressed up to 6 frames
   before landing fires on the landing frame).
 - One attack per player with startup / active / recovery frame counters, an Area2D hitbox that
   hits each opponent once per swing, damage percentages, knockback that scales with damage,

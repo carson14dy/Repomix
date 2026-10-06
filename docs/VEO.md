@@ -60,11 +60,11 @@ python3 tools/veo_backdrops.py
 | --- | --- | --- |
 | `--prompt-file` | `tools/veo_prompts.json` | JSON list of `{"name", "prompt"}`; `name` becomes the file name |
 | `--model` | `veo-3.1-fast-generate-preview` | any Veo model id; `fast` in the name selects the fast price |
-| `--out` | `assets/video/raw` | where `<name>.mp4` lands (has a `.gdignore`, Godot never scans it) |
+| `--out` | `assets/video/raw` | where `<name>.mp4` lands (has a `.gdignore`, Godot never scans it); a clip that already exists there is skipped, not re-billed |
 | `--max-clips N` | all | stop after N prompts |
 | `--budget-usd` | `28` | hard cap on cumulative estimated spend (see policy) |
 | `--price-per-second` | `0.15` fast / `0.40` standard | USD per generated second; override when prices change |
-| `--duration` | `8` | seconds per clip (Veo accepts 4–8) |
+| `--duration` | `8` | seconds per clip (Veo 3.x accepts 4, 6 or 8) |
 | `--aspect` | `16:9` | aspect ratio |
 | `--ledger` | `tools/veo_spend.json` | spend ledger (only change it for tests) |
 | `--dry-run` | off | print requests and plan; writes nothing, sends nothing |
@@ -77,7 +77,7 @@ polls `GET v1beta/{operation.name}` every 10 s (10 min timeout), then downloads
 `response.generateVideoResponse.generatedSamples[0].video.uri` (authenticated with the same
 header, so the key never appears in a URL) to `assets/video/raw/<name>.mp4`.
 
-Exit codes: `0` ok, `1` error (missing key, HTTP/API failure), `2` budget refusal.
+Exit codes: `0` ok, `1` error (missing key, network/HTTP/API failure), `2` budget refusal.
 
 ### Budget policy
 

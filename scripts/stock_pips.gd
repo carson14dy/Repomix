@@ -1,6 +1,8 @@
 extends Control
-## Stock counter under a HUD medallion: `max_stocks` diamond outlines, the first `stocks` of
-## them filled in `color`. `align_right` mirrors the row for the right-hand medallion.
+## Stock counter under a HUD medallion: `max_stocks` diamonds, the first `stocks` of them filled
+## in `color` with an OUTLINE stroke, the rest (lost stocks) hollow slate with a BONE_SHADOW
+## stroke so an empty slot still reads against the dark backdrop. `align_right` mirrors the
+## row for the right-hand medallion.
 
 const PITCH := 22.0
 const HALF := 7.0
@@ -33,8 +35,8 @@ func _draw() -> void:
 				centre + Vector2(-HALF, 0),
 			]
 		)
-		if i < stocks:
-			draw_colored_polygon(diamond, color)
+		var filled := i < stocks
+		draw_colored_polygon(diamond, color if filled else Color(BrawlTheme.SLATE, 0.75))
 		var outline := diamond.duplicate()
 		outline.append(diamond[0])
-		draw_polyline(outline, BrawlTheme.OUTLINE, 2.0, true)
+		draw_polyline(outline, BrawlTheme.OUTLINE if filled else BrawlTheme.BONE_SHADOW, 2.0, true)

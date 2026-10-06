@@ -49,8 +49,9 @@ func test_percent_color_table(ctx: TestContext) -> void:
 
 
 ## A hand-built Main-shaped tree: Player1/Player2 beside a HUD CanvasLayer whose Root runs
-## hud.gd over the P%dMedallion / P%dLabel / Ring node contract.
-func _build_hud(ctx: TestContext, with_medallions: bool) -> Dictionary:
+## hud.gd over the P%dMedallion / P%dLabel / Ring / Stocks node contract. With `labels_only`
+## the medallions hold just the P%dLabel.
+func _build_hud(ctx: TestContext, labels_only: bool) -> Dictionary:
 	var main := ctx.add(Node2D.new())
 	var nodes := {"main": main}
 	for index: int in [1, 2]:
@@ -66,14 +67,15 @@ func _build_hud(ctx: TestContext, with_medallions: bool) -> Dictionary:
 	var root := Control.new()
 	root.name = "Root"
 	root.set_script(load(HUD_SCRIPT_PATH))
-	if with_medallions:
-		for index: int in [1, 2]:
-			var medallion := Control.new()
-			medallion.name = "P%dMedallion" % index
-			var label := Label.new()
-			label.name = "P%dLabel" % index
-			label.text = "0%"
-			medallion.add_child(label)
+	for index: int in [1, 2]:
+		var medallion := Control.new()
+		medallion.name = "P%dMedallion" % index
+		var label := Label.new()
+		label.name = "P%dLabel" % index
+		label.text = "0%"
+		medallion.add_child(label)
+		nodes["label%d" % index] = label
+		if not labels_only:
 			var ring := Control.new()
 			ring.name = "Ring"
 			ring.set_script(load(RING_SCRIPT_PATH))
@@ -82,16 +84,15 @@ func _build_hud(ctx: TestContext, with_medallions: bool) -> Dictionary:
 			pips.name = "Stocks"
 			pips.set_script(load(PIPS_SCRIPT_PATH))
 			medallion.add_child(pips)
-			root.add_child(medallion)
-			nodes["label%d" % index] = label
 			nodes["ring%d" % index] = ring
 			nodes["pips%d" % index] = pips
+		root.add_child(medallion)
 	layer.add_child(root)
 	return nodes
 
 
 func test_hud_labels_and_rings_follow_percentage(ctx: TestContext) -> void:
-	var hud := _build_hud(ctx, true)
+	var hud := _build_hud(ctx, false)
 	await ctx.step(1)
 	var p2_label: Label = hud["label2"]
 	var p1_label: Label = hud["label1"]
@@ -126,15 +127,20 @@ func test_hud_labels_and_rings_follow_percentage(ctx: TestContext) -> void:
 	ctx.check(int(hud["pips1"].get("stocks")) == 3, "P1's pips are untouched")
 
 
-func test_hud_without_medallions_reports_and_survives(ctx: TestContext) -> void:
-	var hud := _build_hud(ctx, false)
+## A medallion missing its Ring and Stocks is reported (push_error, see log) but its label is
+## still bound: skipping the whole medallion instead would leave P2Label at 0%.
+func test_hud_with_labels_only_still_tracks_percentage(ctx: TestContext) -> void:
+	var hud := _build_hud(ctx, true)
 	await ctx.step(1)
 	hud["player2"].call("take_damage", 260.0, Vector2(1, 0), 8.0)
+	hud["main"].get_node("HUD/Root").call("set_stocks", 2, 1)
 	await ctx.step(1)
+	var p2_label: Label = hud["label2"]
 	ctx.check(
-		is_instance_valid(hud["main"]) and hud["player2"].get("percentage") == 8.0,
-		"a HUD with no medallion nodes push_errors (see log) instead of crashing the fight"
+		p2_label.text == "8%",
+		"P2Label reads '8%%' without a Ring or Stocks beside it (got '%s')" % p2_label.text
 	)
+	ctx.check(hud["label1"].text == "0%", "P1Label is still bound and untouched")
 
 
 func test_main_hit_feeds_vfx_and_hud(ctx: TestContext) -> void:
@@ -168,7 +174,12 @@ func test_main_hit_feeds_vfx_and_hud(ctx: TestContext) -> void:
 		frames += 1
 	ctx.check(hits == [[1, 2]], "Player1's swing lands on Player2 (got %s)" % [hits])
 	await ctx.step(1)
-	ctx.check(vfx.active_effect_count() > 0, "Vfx has live effects within 2 frames of the hit")
+	# The slash arc from the press (9 frames, now 4 old) plus exactly one hit spark; a
+	# hit_landed -> hit_spark wiring break leaves the slash alone.
+	ctx.check(
+		vfx.active_effect_count() == 2,
+		"Vfx holds the slash and the hit spark after the hit (got %d)" % vfx.active_effect_count()
+	)
 	ctx.check(
 		p2_label.text.contains("8%"),
 		"HUD/Root/P2Medallion/P2Label shows 8%% after the hit (got '%s')" % p2_label.text

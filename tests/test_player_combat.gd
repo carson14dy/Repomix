@@ -266,9 +266,10 @@ func test_player_two_uses_second_sprite(ctx: TestContext) -> void:
 		sprite.texture.resource_path.ends_with("ignis.png"),
 		"player_index 2 swaps to the Ignis sprite"
 	)
-	# Airborne, so no idle bob: the rest offset puts a 72 px sprite's feet on the collider
-	# bottom, 28 - 72 / 2.
-	ctx.check_near(sprite.offset.y, -8.0, 0.01, "Ignis sprite offset.y is -8")
+	# The Sprite2D sits at the feet (collider bottom, y 28) and the offset lifts the 72 px art
+	# so its bottom edge is on that pivot: -72 / 2.
+	ctx.check(sprite.position == Vector2(0, 28), "the sprite node pivots at the feet (0, 28)")
+	ctx.check_near(sprite.offset.y, -36.0, 0.01, "Ignis sprite offset.y is -36")
 
 
 func test_player_one_uses_kage_sprite(ctx: TestContext) -> void:
@@ -278,7 +279,8 @@ func test_player_one_uses_kage_sprite(ctx: TestContext) -> void:
 	ctx.check(
 		sprite.texture.resource_path.ends_with("kage.png"), "player_index 1 keeps the Kage sprite"
 	)
-	ctx.check_near(sprite.offset.y, -4.0, 0.01, "Kage sprite offset.y is -4 (28 - 64 / 2)")
+	ctx.check(sprite.position == Vector2(0, 28), "the sprite node pivots at the feet (0, 28)")
+	ctx.check_near(sprite.offset.y, -32.0, 0.01, "Kage sprite offset.y is -32 (-64 / 2)")
 
 
 # j. A same-frame trade hits both fighters, whatever their order in the scene tree, and both
@@ -403,7 +405,60 @@ func test_hitbox_hit_freezes_both_for_hitstop(ctx: TestContext) -> void:
 	ctx.check_near(victim.velocity.x, 166.4, 0.5, "launch velocity is preserved through hitstop")
 
 
-# n. attack_started(player_index, facing) fires on the frame the swing begins and only once,
+# n. Turning and attacking on the same frame: the swing (and so the slash arc) reports the
+#    facing the hitbox will use, not last frame's.
+func test_attack_started_reports_the_turn_frame_facing(ctx: TestContext) -> void:
+	ctx.make_floor(FLOOR_CENTER)
+	var p1 := ctx.spawn_player(1, Vector2(500, STAND_Y))
+	var started: Array = []
+	p1.connect("attack_started", func(i: int, f: int) -> void: started.append([i, f]))
+	await ctx.step(3)
+	ctx.check(int(p1.get("facing")) == 1, "P1 starts facing right")
+	ctx.press("p1_left")
+	ctx.press("p1_attack")
+	await ctx.step(1)
+	ctx.release("p1_left")
+	ctx.release("p1_attack")
+	ctx.check(int(p1.get("facing")) == -1, "holding left turns P1 on that frame")
+	ctx.check(started == [[1, -1]], "attack_started reports the new facing (got %s)" % [started])
+
+
+# o. Buttons held across ko() -> respawn(), or already down when the fighter enters the tree,
+#    are not fresh presses: the first active frame neither swings nor spends the air jump.
+func test_respawn_ignores_buttons_held_through_the_ko(ctx: TestContext) -> void:
+	var player := ctx.spawn_player(1, Vector2(600, 100))
+	var events: Array = []
+	player.connect("attack_started", func(i: int, _f: int) -> void: events.append(["attack", i]))
+	player.connect("jumped", func(i: int, air: bool) -> void: events.append(["jump", i, air]))
+	await ctx.step(2)
+	player.call("ko")
+	ctx.press("p1_attack")
+	ctx.press("p1_jump")
+	await ctx.step(3)
+	player.call("respawn")
+	await ctx.step(1)
+	ctx.check(events.is_empty(), "no swing or air jump on the first frame back (got %s)" % [events])
+	ctx.check_near(player.velocity.y, 25.0, 0.01, "one frame of gravity, not an air jump (-560)")
+	ctx.release("p1_attack")
+	ctx.release("p1_jump")
+
+
+func test_attack_held_at_spawn_is_not_a_press(ctx: TestContext) -> void:
+	ctx.press("p1_attack")
+	var player := ctx.spawn_player(1, Vector2(600, 100))
+	var started: Array = []
+	player.connect("attack_started", func(i: int, f: int) -> void: started.append([i, f]))
+	await ctx.step(2)
+	ctx.check(started.is_empty(), "attack held when the fighter enters the tree does not swing")
+	ctx.release("p1_attack")
+	await ctx.step(1)
+	ctx.press("p1_attack")
+	await ctx.step(1)
+	ctx.release("p1_attack")
+	ctx.check(started == [[1, 1]], "a fresh press after release swings")
+
+
+# p. attack_started(player_index, facing) fires on the frame the swing begins and only once,
 #    even with the button held through the whole swing.
 func test_attack_started_fires_once_per_attack(ctx: TestContext) -> void:
 	ctx.make_floor(FLOOR_CENTER)

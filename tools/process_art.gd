@@ -34,6 +34,10 @@ const PORTRAIT_SIZE := 96
 const PORTRAIT_RADIUS := 46.0
 ## Fraction of the cropped sprite's height that holds the head.
 const HEAD_BAND := 0.32
+## Fraction of the height whose opaque pixels fix the portrait's horizontal centre: the crown
+## only. Lower rows of the head band hold a trailing hood, cape or pauldron that would pull
+## the square away from the face (0.12 still catches Ignis' pauldron).
+const HEAD_CENTRE_ROWS := 0.08
 
 
 func _initialize() -> void:
@@ -175,14 +179,14 @@ func _resize_to_height(img: Image, height: int) -> Image:
 	return out
 
 
-## Head band = top HEAD_BAND of the sprite; a square of that height is centred on the
-## opaque pixels of the band, resized to PORTRAIT_SIZE, composited over SLATE inside the
-## medallion circle and cleared outside it.
+## Head band = top HEAD_BAND of the sprite; a square of that height is centred horizontally
+## on the opaque pixels of the top HEAD_CENTRE_ROWS, resized to PORTRAIT_SIZE, composited
+## over SLATE inside the medallion circle and cleared outside it.
 func _portrait(sprite: Image) -> Image:
 	var band_h := maxi(1, roundi(sprite.get_height() * HEAD_BAND))
 	var opaque_min := sprite.get_width()
 	var opaque_max := -1
-	for y in range(band_h):
+	for y in range(maxi(1, roundi(sprite.get_height() * HEAD_CENTRE_ROWS))):
 		for x in range(sprite.get_width()):
 			if sprite.get_pixel(x, y).a >= 0.5:
 				opaque_min = mini(opaque_min, x)

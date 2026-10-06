@@ -6,7 +6,9 @@ extends RefCounted
 const MAIN_SCENE_PATH := "res://scenes/Main.tscn"
 
 
+## Resets MatchConfig first: the contract below is the default Kage vs Ignis, no CPU.
 func _spawn_main(ctx: TestContext) -> Node2D:
+	MatchConfig.reset()
 	var scene: PackedScene = load(MAIN_SCENE_PATH)
 	ctx.check(scene != null, "Main.tscn loads (a missing ext_resource or bad .tscn breaks this)")
 	if scene == null:
@@ -254,17 +256,23 @@ func test_fight_camera_frames_both_players(ctx: TestContext) -> void:
 	ctx.check(camera != null and camera.enabled, "Camera2D exists and is enabled")
 	if camera == null:
 		return
+	# The limits are the Match blast zone, so a live fighter is never off-screen, and the span
+	# (1800x1520) holds the widest view (1280 / min_zoom), so Camera2D's clamp keeps tracking.
 	ctx.check(
 		(
-			camera.limit_left == -200
-			and camera.limit_top == -240
-			and camera.limit_right == 1480
-			and camera.limit_bottom == 960
+			camera.limit_left == -260
+			and camera.limit_top == -420
+			and camera.limit_right == 1540
+			and camera.limit_bottom == 1100
 		),
-		"Camera2D limits are (-200, -240)..(1480, 960)"
+		"Camera2D limits are the blast zone (-260, -420)..(1540, 1100)"
 	)
 	var min_zoom := float(camera.get("min_zoom"))
 	var max_zoom := float(camera.get("max_zoom"))
+	ctx.check(
+		1280.0 / min_zoom <= 1800.0 and 720.0 / min_zoom <= 1520.0,
+		"the widest view (%.0f px) fits inside the limit span" % (1280.0 / min_zoom)
+	)
 	await ctx.step(90)
 	var spawn_zoom := camera.zoom.x
 	ctx.check(

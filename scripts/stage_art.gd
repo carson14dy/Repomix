@@ -23,6 +23,17 @@ const SHARD_CENTRES := [Vector2(380, 470), Vector2(900, 470)]
 const SHARD := Rect2(-120, -10, 240, 20)
 ## Teeth under each shard: [x offset from centre, length]
 const TEETH := [[-72.0, 18.0], [-4.0, 22.0], [68.0, 14.0]]
+## Break profile of a chipped platform end: three teeth with notches between, as fractions of
+## the chip length (x, outward) and of the platform's half height (y, top to bottom).
+const CHIP_PROFILE: Array[Vector2] = [
+	Vector2(0.0, -1.0),
+	Vector2(0.45, -0.7),
+	Vector2(0.2, -0.4),
+	Vector2(1.0, -0.05),
+	Vector2(0.35, 0.3),
+	Vector2(0.7, 0.65),
+	Vector2(0.0, 1.0),
+]
 ## Hairline cracks across the slab, in world space.
 const CRACKS := [
 	[Vector2(372, 602), Vector2(380, 611), Vector2(392, 616), Vector2(398, 626)],
@@ -49,11 +60,18 @@ func _draw() -> void:
 ## stage centre (`lean`), bulges mid-way and curls back under at the tip like a real rib.
 func _rib_points(x: float, lean: float, bottom: float) -> PackedVector2Array:
 	var points := PackedVector2Array()
+	var side := _bulge_side(lean)
 	for i in range(9):
 		var t := i / 8.0
-		var dx := lean * t * 60.0 + sin(t * PI) * 26.0 * signf(lean) - lean * t * t * t * 30.0
+		var dx := lean * t * 60.0 + sin(t * PI) * 26.0 * side - lean * t * t * t * 30.0
 		points.append(Vector2(x + dx, lerpf(RIB_TOP, bottom, t)))
 	return points
+
+
+## Side the rib bulges towards. Never 0 (unlike signf): the rib on the slab's centre line
+## (x 640, lean 0) bows right like its neighbours instead of hanging as a straight pole.
+func _bulge_side(lean: float) -> float:
+	return 1.0 if lean >= 0.0 else -1.0
 
 
 ## Tapered band around a curve: `grow` pads both edges (used for the outline pass).
@@ -85,7 +103,7 @@ func _draw_ribs() -> void:
 		# Lit edge on the side facing the sky light (towards the stage centre).
 		var lit := PackedVector2Array()
 		for p in points.slice(1, 7):
-			lit.append(p + Vector2(-signf(lean) * 6.0, 0))
+			lit.append(p + Vector2(-_bulge_side(lean) * 6.0, 0))
 		draw_polyline(lit, BrawlTheme.BONE, 4.0, true)
 
 
@@ -123,8 +141,8 @@ func _draw_slab() -> void:
 		draw_line(Vector2(jx, 601), Vector2(jx + 2, SHADOW_BAND_TOP), CRACK, 2.0)
 	for crack: Array in CRACKS:
 		draw_polyline(PackedVector2Array(crack), CRACK, 1.5, true)
-	_draw_chipped_end(Vector2(SLAB.position.x, 610.0), -1.0, 22.0)
-	_draw_chipped_end(Vector2(SLAB.end.x, 622.0), 1.0, 22.0)
+	_draw_chipped_end(Vector2(SLAB.position.x, 610.0), -1.0, 22.0, 13.0)
+	_draw_chipped_end(Vector2(SLAB.end.x, 622.0), 1.0, 22.0, 13.0)
 	outer.append(outer[0])
 	draw_polyline(outer, BrawlTheme.OUTLINE, 3.0, true)
 
@@ -140,12 +158,16 @@ func _draw_vertebrae() -> void:
 			draw_circle(centre + Vector2(VERTEBRA_SPACING / 2.0, 4.0), 3.0, BrawlTheme.BONE_DARK)
 
 
-## A short jagged triangle poking out of a slab end; `side` is -1 (left) or +1 (right).
-func _draw_chipped_end(base: Vector2, side: float, length: float) -> void:
-	var tip := base + Vector2(side * length, 6.0)
-	var chip := PackedVector2Array([base + Vector2(0, -10), tip, base + Vector2(0, 12)])
+## A jagged break (CHIP_PROFILE) poking out of a platform end: `side` is -1 (left) or +1
+## (right), `length` the reach of the longest tooth, `half_height` keeps every tooth between
+## the platform's top and bottom edges. The profile is flipped on the left end so the two
+## ends of a platform do not mirror each other.
+func _draw_chipped_end(base: Vector2, side: float, length: float, half_height: float) -> void:
+	var chip := PackedVector2Array()
+	for p: Vector2 in CHIP_PROFILE:
+		chip.append(base + Vector2(side * length * p.x, side * half_height * p.y))
 	draw_colored_polygon(chip, BrawlTheme.BONE_SHADOW)
-	draw_polyline(PackedVector2Array([chip[0], chip[1], chip[2]]), BrawlTheme.OUTLINE, 3.0, true)
+	draw_polyline(chip, BrawlTheme.OUTLINE, 3.0, true)
 
 
 func _draw_shard(centre: Vector2) -> void:
@@ -162,8 +184,8 @@ func _draw_shard(centre: Vector2) -> void:
 	draw_colored_polygon(_rounded_rect(band, 0.0, 8.0), BrawlTheme.BONE_SHADOW)
 	draw_rect(Rect2(rect.position.x + 8.0, rect.position.y + 1.5, rect.size.x - 16.0, 3.0), RIM)
 	draw_line(centre + Vector2(-30, -7), centre + Vector2(-22, 1), CRACK, 1.5)
-	_draw_chipped_end(Vector2(rect.position.x, centre.y - 2.0), -1.0, 14.0)
-	_draw_chipped_end(Vector2(rect.end.x, centre.y + 2.0), 1.0, 14.0)
+	_draw_chipped_end(Vector2(rect.position.x, centre.y - 2.0), -1.0, 14.0, 7.0)
+	_draw_chipped_end(Vector2(rect.end.x, centre.y + 2.0), 1.0, 14.0, 7.0)
 	outer.append(outer[0])
 	draw_polyline(outer, BrawlTheme.OUTLINE, 3.0, true)
 

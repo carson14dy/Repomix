@@ -28,8 +28,9 @@ func shake(intensity: float, frames: int) -> void:
 
 ## Position is NOT clamped here: Camera2D's own limit_* properties already keep the visible
 ## rect inside the limits (decision: a manual clamp of `position` fought the contract's
-## "position.x > 700 with Player2 at x 1100" test, since the view at that zoom is 1609 px
-## wide against a 1680 px limit span).
+## "position.x > 700 with Player2 at x 1100" test). That clamp only tracks while the view is
+## narrower than the limit span, so Main.tscn's limits (the blast zone, 1800x1520) must hold
+## the widest view, 1280 / min_zoom = 1778 px.
 func _physics_process(_delta: float) -> void:
 	if is_instance_valid(_a) and is_instance_valid(_b):
 		var dist := _a.global_position.distance_to(_b.global_position)

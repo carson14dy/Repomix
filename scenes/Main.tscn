@@ -73,10 +73,10 @@ script = ExtResource("7_vfx")
 
 [node name="Camera2D" type="Camera2D" parent="."]
 position = Vector2(640, 360)
-limit_left = -200
-limit_top = -240
-limit_right = 1480
-limit_bottom = 960
+limit_left = -260
+limit_top = -420
+limit_right = 1540
+limit_bottom = 1100
 script = ExtResource("8_camera")
 
 [node name="Match" type="Node" parent="."]
@@ -88,6 +88,7 @@ script = ExtResource("15_match")
 layer = 5
 
 [node name="Vignette" type="TextureRect" parent="VignetteLayer"]
+texture_filter = 2
 offset_right = 1280.0
 offset_bottom = 720.0
 mouse_filter = 2
@@ -231,7 +232,9 @@ offset_left = 340.0
 offset_top = 678.0
 offset_right = 940.0
 offset_bottom = 702.0
-theme_override_colors/font_color = Color(0.576471, 0.662745, 0.701961, 0.8)
+theme_override_colors/font_color = Color(0.945098, 0.960784, 0.976471, 0.9)
+theme_override_colors/font_outline_color = Color(0.105882, 0.164706, 0.2, 1)
+theme_override_constants/outline_size = 4
 theme_override_font_sizes/font_size = 16
 text = "P1  WASD + G      P2  Arrows + L      3 stocks, double jump, fall or fly out to lose one"
 horizontal_alignment = 1
@@ -247,12 +250,22 @@ offset_bottom = 720.0
 mouse_filter = 2
 color = Color(0.0784314, 0.12549, 0.164706, 0.6)
 
+[node name="Backing" type="ColorRect" parent="WinLayer"]
+offset_left = 240.0
+offset_top = 216.0
+offset_right = 1040.0
+offset_bottom = 430.0
+mouse_filter = 2
+color = Color(0.0784314, 0.12549, 0.164706, 0.85)
+
 [node name="Winner" type="Label" parent="WinLayer"]
 offset_left = 240.0
 offset_top = 240.0
 offset_right = 1040.0
 offset_bottom = 350.0
 theme_override_colors/font_color = Color(0.945098, 0.960784, 0.976471, 1)
+theme_override_colors/font_outline_color = Color(0.105882, 0.164706, 0.2, 1)
+theme_override_constants/outline_size = 8
 theme_override_font_sizes/font_size = 72
 text = "Kage wins"
 horizontal_alignment = 1
@@ -263,8 +276,8 @@ offset_left = 240.0
 offset_top = 370.0
 offset_right = 1040.0
 offset_bottom = 410.0
-theme_override_colors/font_color = Color(0.576471, 0.662745, 0.701961, 1)
+theme_override_colors/font_color = Color(0.945098, 0.960784, 0.976471, 1)
 theme_override_font_sizes/font_size = 24
-text = "Attack to rematch  (P1 G / P2 L)"
+text = "Attack to rematch (P1 G / P2 L)   Down for character select"
 horizontal_alignment = 1
 vertical_alignment = 1

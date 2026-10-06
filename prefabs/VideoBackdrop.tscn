@@ -8,6 +8,7 @@ follow_viewport_enabled = false
 script = ExtResource("1_video_backdrop")
 
 [node name="Poster" type="TextureRect" parent="."]
+texture_filter = 2
 offset_left = -77.0
 offset_top = -43.0
 offset_right = 1357.0
@@ -16,6 +17,7 @@ mouse_filter = 2
 expand_mode = 1
 
 [node name="Player" type="VideoStreamPlayer" parent="."]
+texture_filter = 2
 offset_left = -77.0
 offset_top = -43.0
 offset_right = 1357.0

@@ -13,7 +13,7 @@ config_version=5
 config/name="BrawlCrypt"
 config/description="BrawlCrypt: a local-multiplayer 2D gothic platform fighter. Two players, one keyboard (or one controller each)."
 config/version="0.1.0"
-run/main_scene="res://scenes/Main.tscn"
+run/main_scene="res://scenes/Title.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")
 config/icon="res://icon.svg"
 
@@ -86,4 +86,4 @@ common/physics_ticks_per_second=60
 
 renderer/rendering_method="gl_compatibility"
 renderer/rendering_method.mobile="gl_compatibility"
-textures/canvas_textures/default_texture_filter=0
+textures/canvas_textures/default_texture_filter=1

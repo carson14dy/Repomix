@@ -1,0 +1,266 @@
+[gd_scene load_steps=4 format=3]
+
+[ext_resource type="Script" path="res://scripts/title.gd" id="1_title"]
+
+[sub_resource type="Gradient" id="Gradient_vignette"]
+offsets = PackedFloat32Array(0, 0.45, 1)
+colors = PackedColorArray(0.0784314, 0.12549, 0.164706, 0, 0.0784314, 0.12549, 0.164706, 0, 0.0352941, 0.0588235, 0.0784314, 0.75)
+
+[sub_resource type="GradientTexture2D" id="GradientTexture2D_vignette"]
+gradient = SubResource("Gradient_vignette")
+width = 256
+height = 256
+fill = 1
+fill_from = Vector2(0.5, 0.5)
+fill_to = Vector2(1, 0.5)
+
+[node name="Title" type="Control"]
+layout_mode = 3
+anchors_preset = 15
+anchor_right = 1.0
+anchor_bottom = 1.0
+grow_horizontal = 2
+grow_vertical = 2
+script = ExtResource("1_title")
+
+[node name="Background" type="ColorRect" parent="."]
+layout_mode = 0
+offset_right = 1280.0
+offset_bottom = 720.0
+mouse_filter = 2
+color = Color(0.0784314, 0.12549, 0.164706, 1)
+
+[node name="Vignette" type="TextureRect" parent="."]
+texture_filter = 2
+layout_mode = 0
+offset_right = 1280.0
+offset_bottom = 720.0
+mouse_filter = 2
+texture = SubResource("GradientTexture2D_vignette")
+
+[node name="Wordmark" type="Label" parent="."]
+layout_mode = 0
+offset_top = 150.0
+offset_right = 1280.0
+offset_bottom = 290.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.87451, 0.901961, 0.913725, 1)
+theme_override_colors/font_outline_color = Color(0.105882, 0.164706, 0.2, 1)
+theme_override_colors/font_shadow_color = Color(0.0352941, 0.0588235, 0.0784314, 0.85)
+theme_override_constants/outline_size = 10
+theme_override_constants/shadow_offset_x = 0
+theme_override_constants/shadow_offset_y = 8
+theme_override_constants/shadow_outline_size = 10
+theme_override_font_sizes/font_size = 112
+text = "BRAWLCRYPT"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Rule" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 430.0
+offset_top = 306.0
+offset_right = 850.0
+offset_bottom = 308.0
+mouse_filter = 2
+color = Color(0.372549, 0.462745, 0.505882, 1)
+
+[node name="Subtitle" type="Label" parent="."]
+layout_mode = 0
+offset_top = 318.0
+offset_right = 1280.0
+offset_bottom = 352.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.576471, 0.662745, 0.701961, 1)
+theme_override_font_sizes/font_size = 22
+text = "Local multiplayer platform fighter"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Marker" type="ColorRect" parent="."]
+layout_mode = 0
+offset_left = 532.0
+offset_top = 412.0
+offset_right = 538.0
+offset_bottom = 436.0
+mouse_filter = 2
+color = Color(0.87451, 0.901961, 0.913725, 1)
+
+[node name="Menu" type="Control" parent="."]
+layout_mode = 0
+offset_left = 556.0
+offset_top = 404.0
+offset_right = 876.0
+offset_bottom = 564.0
+mouse_filter = 2
+
+[node name="Versus" type="Label" parent="Menu"]
+layout_mode = 0
+offset_right = 320.0
+offset_bottom = 40.0
+theme_override_font_sizes/font_size = 28
+text = "Versus (2 players)"
+vertical_alignment = 1
+
+[node name="VersusCpu" type="Label" parent="Menu"]
+layout_mode = 0
+offset_top = 52.0
+offset_right = 320.0
+offset_bottom = 92.0
+theme_override_font_sizes/font_size = 28
+text = "Versus CPU"
+vertical_alignment = 1
+
+[node name="Controls" type="Label" parent="Menu"]
+layout_mode = 0
+offset_top = 104.0
+offset_right = 320.0
+offset_bottom = 144.0
+theme_override_font_sizes/font_size = 28
+text = "Controls"
+vertical_alignment = 1
+
+[node name="Footer" type="Label" parent="."]
+layout_mode = 0
+offset_top = 660.0
+offset_right = 1280.0
+offset_bottom = 690.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.576471, 0.662745, 0.701961, 1)
+theme_override_font_sizes/font_size = 15
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Version" type="Label" parent="."]
+layout_mode = 0
+offset_left = 1060.0
+offset_top = 686.0
+offset_right = 1264.0
+offset_bottom = 710.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.372549, 0.462745, 0.505882, 1)
+theme_override_font_sizes/font_size = 13
+horizontal_alignment = 2
+vertical_alignment = 1
+
+[node name="ControlsPanel" type="Control" parent="."]
+visible = false
+layout_mode = 0
+offset_left = 260.0
+offset_top = 190.0
+offset_right = 1020.0
+offset_bottom = 560.0
+mouse_filter = 2
+
+[node name="Frame" type="ColorRect" parent="ControlsPanel"]
+layout_mode = 0
+offset_left = -2.0
+offset_top = -2.0
+offset_right = 762.0
+offset_bottom = 372.0
+mouse_filter = 2
+color = Color(0.372549, 0.462745, 0.505882, 1)
+
+[node name="Backing" type="ColorRect" parent="ControlsPanel"]
+layout_mode = 0
+offset_right = 760.0
+offset_bottom = 370.0
+mouse_filter = 2
+color = Color(0.105882, 0.164706, 0.2, 1)
+
+[node name="Heading" type="Label" parent="ControlsPanel"]
+layout_mode = 0
+offset_top = 18.0
+offset_right = 760.0
+offset_bottom = 54.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.87451, 0.901961, 0.913725, 1)
+theme_override_font_sizes/font_size = 28
+text = "Controls"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="P1Header" type="Label" parent="ControlsPanel"]
+layout_mode = 0
+offset_left = 90.0
+offset_top = 76.0
+offset_right = 370.0
+offset_bottom = 106.0
+mouse_filter = 2
+theme_override_font_sizes/font_size = 22
+text = "Player 1"
+vertical_alignment = 1
+
+[node name="P1Actions" type="Label" parent="ControlsPanel"]
+layout_mode = 0
+offset_left = 90.0
+offset_top = 112.0
+offset_right = 230.0
+offset_bottom = 262.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.576471, 0.662745, 0.701961, 1)
+theme_override_font_sizes/font_size = 18
+
+[node name="P1Keys" type="Label" parent="ControlsPanel"]
+layout_mode = 0
+offset_left = 230.0
+offset_top = 112.0
+offset_right = 370.0
+offset_bottom = 262.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.87451, 0.901961, 0.913725, 1)
+theme_override_font_sizes/font_size = 18
+
+[node name="P2Header" type="Label" parent="ControlsPanel"]
+layout_mode = 0
+offset_left = 420.0
+offset_top = 76.0
+offset_right = 700.0
+offset_bottom = 106.0
+mouse_filter = 2
+theme_override_font_sizes/font_size = 22
+text = "Player 2"
+vertical_alignment = 1
+
+[node name="P2Actions" type="Label" parent="ControlsPanel"]
+layout_mode = 0
+offset_left = 420.0
+offset_top = 112.0
+offset_right = 560.0
+offset_bottom = 262.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.576471, 0.662745, 0.701961, 1)
+theme_override_font_sizes/font_size = 18
+
+[node name="P2Keys" type="Label" parent="ControlsPanel"]
+layout_mode = 0
+offset_left = 560.0
+offset_top = 112.0
+offset_right = 700.0
+offset_bottom = 262.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.87451, 0.901961, 0.913725, 1)
+theme_override_font_sizes/font_size = 18
+
+[node name="Joypad" type="Label" parent="ControlsPanel"]
+layout_mode = 0
+offset_top = 282.0
+offset_right = 760.0
+offset_bottom = 312.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.576471, 0.662745, 0.701961, 1)
+theme_override_font_sizes/font_size = 15
+text = "Joypads: left stick or D-pad moves, A jumps, X attacks. Pad 0 is Player 1, pad 1 is Player 2."
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Close" type="Label" parent="ControlsPanel"]
+layout_mode = 0
+offset_top = 322.0
+offset_right = 760.0
+offset_bottom = 352.0
+mouse_filter = 2
+theme_override_colors/font_color = Color(0.372549, 0.462745, 0.505882, 1)
+theme_override_font_sizes/font_size = 15
+horizontal_alignment = 1
+vertical_alignment = 1

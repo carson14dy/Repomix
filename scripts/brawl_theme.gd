@@ -1,7 +1,8 @@
 class_name BrawlTheme
 extends RefCounted
 ## BrawlCrypt palette and the two colour rules shared by HUD, VFX and stage art.
-## Bone whites over teal-grey shadows (the Wyrm's Ossuary), cyan for Kage, crimson for Ignis.
+## Bone whites over teal-grey shadows (the Wyrm's Ossuary), cyan for Player 1, crimson for
+## Player 2 (fighter names come from the Roster).
 
 const P1_COLOR := Color("#38bdf8")
 const P2_COLOR := Color("#ef4444")
@@ -19,10 +20,6 @@ const PERCENT_RED := Color("#f43f5e")
 
 static func player_color(index: int) -> Color:
 	return P2_COLOR if index == 2 else P1_COLOR
-
-
-static func player_name(index: int) -> String:
-	return "Ignis" if index == 2 else "Kage"
 
 
 ## Damage read-out colour: white < 35, yellow < 75, orange < 120, red above.

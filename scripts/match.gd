@@ -43,8 +43,12 @@ func restart() -> void:
 
 
 func _physics_process(_delta: float) -> void:
+	# Polled every frame, win screen or not, so an attack held through the final KO is never
+	# read as the rematch press (same reason main.gd polls Down every frame).
+	var attack_pressed := _poll_attack_edges()
 	if winner_index != 0:
-		_poll_rematch()
+		if attack_pressed:
+			restart()
 		return
 	for index: int in _players:
 		var player: Player = _players[index]
@@ -55,7 +59,8 @@ func _physics_process(_delta: float) -> void:
 				player.respawn()
 		elif player.active and not blast_zone.has_point(player.global_position):
 			_ko(index)
-			# A same-frame double KO must not touch the fighter that just won.
+			# Decision: in a same-frame double KO on the last stocks the fighter processed first
+			# (Player1) loses and the other keeps its stock, so match_ended fires once.
 			if winner_index != 0:
 				return
 
@@ -72,18 +77,14 @@ func _ko(index: int) -> void:
 	for other: int in _players:
 		if stocks[other] > 0:
 			winner_index = other
-	# Snapshot the buttons so only a press that begins after the win screen counts.
-	for held_index: int in _attack_held:
-		_attack_held[held_index] = Input.is_action_pressed("p%d_attack" % held_index)
 	match_ended.emit(winner_index)
 
 
-## Either fighter's attack press (edge, same rule as Player._just_pressed) rematches.
-func _poll_rematch() -> void:
+## True on a frame either fighter's attack goes down (edge, same rule as Player._just_pressed).
+func _poll_attack_edges() -> bool:
 	var pressed := false
 	for index: int in _attack_held:
 		var held := Input.is_action_pressed("p%d_attack" % index)
 		pressed = pressed or (held and not _attack_held[index])
 		_attack_held[index] = held
-	if pressed:
-		restart()
+	return pressed

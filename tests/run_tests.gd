@@ -51,6 +51,11 @@ func _run_all() -> void:
 			print("\n%s" % ctx.test_name)
 			await suite.call(method_name, ctx)
 			await ctx.teardown()
+			if ctx.passes + ctx.failures == 0:
+				# A test that records no check almost always died on a runtime error
+				# (the coroutine aborts silently); count it as a failure.
+				print("  FAIL  test recorded no checks (runtime error above?)")
+				ctx.failures += 1
 			_total_passes += ctx.passes
 			_total_failures += ctx.failures
 	print("\n==== %d passed, %d failed ====" % [_total_passes, _total_failures])

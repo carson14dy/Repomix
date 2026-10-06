@@ -1,7 +1,9 @@
 extends SceneTree
 ## Captures Main.tscn to docs/screenshot-main.png, then hits Player2 for 24% (with the slash
 ## arc and hit spark a real hitbox hit would trigger through main.gd) and captures
-## docs/screenshot-hit.png (knockback tint, Vfx, "24%" medallion) for the lead's review.
+## docs/screenshot-hit.png (knockback tint, Vfx, "24%" medallion), then moves Player2 to the
+## far right of the spine and lets the fight camera settle for docs/screenshot-zoom.png
+## (zoomed-out framing) for the lead's review.
 ##
 ## Run:  LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" $GODOT --path . \
 ##         --rendering-driver opengl3 --audio-driver Dummy --script tools/screenshot.gd
@@ -9,6 +11,9 @@ extends SceneTree
 const MAIN_SCENE := "res://scenes/Main.tscn"
 const MAIN_PNG := "res://docs/screenshot-main.png"
 const HIT_PNG := "res://docs/screenshot-hit.png"
+const ZOOM_PNG := "res://docs/screenshot-zoom.png"
+## Player2 spawn for the zoom shot: still on the spine (collider x 190..1090), far from Player1.
+const ZOOM_P2_POSITION := Vector2(1050, 540)
 
 
 func _initialize() -> void:
@@ -30,12 +35,23 @@ func _capture() -> void:
 	vfx.hit_spark(player2.global_position + Vector2(0, -10), BrawlTheme.P1_COLOR, false)
 	await _frames(3)
 	_save(HIT_PNG)
+	player2.global_position = ZOOM_P2_POSITION
+	player2.velocity = Vector2.ZERO
+	# 90 physics frames: the camera lerps 8% per step, so it has settled; awaiting physics
+	# frames (not process frames) keeps the count exact however slow the software renderer is.
+	await _physics_frames(90)
+	_save(ZOOM_PNG)
 	quit(0)
 
 
 func _frames(count: int) -> void:
 	for _i in range(count):
 		await process_frame
+
+
+func _physics_frames(count: int) -> void:
+	for _i in range(count):
+		await physics_frame
 
 
 func _save(path: String) -> void:

@@ -1,6 +1,11 @@
 extends RefCounted
 ## Sfx: deterministic sample rendering (lengths, loudness, onsets, the jump sweep), the
 ## 16-bit WAV packing, and the six-voice prefab playing under the headless Dummy driver.
+##
+## Dummy driver facts (measured): play() is accepted and `playing` reads true from the next
+## frame on, but the driver never mixes, so get_playback_position() stays 0 and a voice never
+## finishes on its own. Nodes added at process frame 0 are not inside the tree yet, so each
+## prefab test steps one frame before playing.
 
 const SFX_SCENE_PATH := "res://prefabs/Sfx.tscn"
 ## 2 ms at 44100 Hz.
@@ -132,6 +137,7 @@ func test_prefab_plays_under_dummy_driver(ctx: TestContext) -> void:
 		voices.all(func(v: AudioStreamPlayer) -> bool: return v.volume_db == -6.0),
 		"every voice starts at master_volume_db (-6 dB)"
 	)
+	await ctx.step(1)
 	sfx.play_hit(true)
 	await ctx.step(1)
 	var playing := voices.filter(func(v: AudioStreamPlayer) -> bool: return v.playing)
@@ -149,6 +155,7 @@ func test_prefab_plays_under_dummy_driver(ctx: TestContext) -> void:
 func test_polyphony_fills_idle_voices_then_steals_oldest(ctx: TestContext) -> void:
 	var sfx := ctx.add(load(SFX_SCENE_PATH).instantiate()) as Sfx
 	var voices := _voices(sfx)
+	await ctx.step(1)
 	sfx.play_ko()
 	sfx.play_ko()
 	sfx.play_ko()

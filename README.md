@@ -10,6 +10,7 @@ Local multiplayer only: there is no online play and none is planned.
 
 ![Wyrm's Ossuary at the start of a match](docs/screenshot-main.png)
 ![Ignis taking a 24% hit](docs/screenshot-hit.png)
+![The camera zoomed out with the fighters far apart](docs/screenshot-zoom.png)
 
 ## Open and run
 
@@ -179,7 +180,7 @@ gdlint scripts tests tools && gdformat --check scripts tests tools
 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" $GODOT --path . \
   --rendering-driver opengl3 --audio-driver Dummy --quit-after 120 2>&1 | grep -iE "script error|^error"
 
-# Refresh docs/screenshot-main.png and docs/screenshot-hit.png.
+# Refresh docs/screenshot-main.png, docs/screenshot-hit.png and docs/screenshot-zoom.png.
 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" $GODOT --path . \
   --rendering-driver opengl3 --audio-driver Dummy --script tools/screenshot.gd
 ```

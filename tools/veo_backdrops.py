@@ -220,6 +220,7 @@ def main(argv: list[str] | None = None) -> int:
         f"ledger={args.ledger}"
     )
 
+    skipped = 0
     for entry_index, item in enumerate(prompts, start=1):
         spec = build_generate_request(args.model, item["prompt"], args.aspect, args.duration)
         entry = {
@@ -230,13 +231,18 @@ def main(argv: list[str] | None = None) -> int:
             "status": "planned" if args.dry_run else "started",
             "started_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         }
+        dest = args.out / f"{item['name']}.mp4"
+        if dest.exists():
+            # Re-running the script must not re-bill clips already on disk; rename or delete to redo.
+            print(f"\n[{entry_index}/{len(prompts)}] {item['name']}: {dest} exists, skipping")
+            skipped += 1
+            continue
         try:
             reserve_spend(ledger, entry, args.budget_usd)
         except BudgetExceeded as err:
             print(f"BUDGET: {err}", file=sys.stderr)
             return EXIT_BUDGET
 
-        dest = args.out / f"{item['name']}.mp4"
         print(f"\n[{entry_index}/{len(prompts)}] {item['name']} -> {dest}")
         print(f"  {spec['method']} {spec['url']}")
         for header, value in spec["headers"].items():
@@ -257,7 +263,8 @@ def main(argv: list[str] | None = None) -> int:
             entry["status"] = "done"
             entry["bytes"] = size
             print(f"  wrote {dest} ({size} bytes)")
-        except RuntimeError as err:
+        except (RuntimeError, OSError, ValueError) as err:
+            # OSError covers urllib's URLError and socket timeouts; ValueError covers a non-JSON body.
             entry["status"] = "failed"
             entry["error"] = str(err)
             save_ledger(args.ledger, ledger)
@@ -266,7 +273,8 @@ def main(argv: list[str] | None = None) -> int:
         save_ledger(args.ledger, ledger)
 
     if args.dry_run:
-        print(f"\ndry run: {len(prompts)} clip(s) would cost ${cost * len(prompts):.2f}; ledger not written")
+        planned = len(prompts) - skipped
+        print(f"\ndry run: {planned} clip(s) would cost ${cost * planned:.2f}; ledger not written")
     return EXIT_OK
 
 

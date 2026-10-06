@@ -13,6 +13,7 @@ import os
 import sys
 import tempfile
 import unittest
+import urllib.error
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
 from unittest import mock
@@ -166,6 +167,45 @@ class VeoBackdropsTest(unittest.TestCase):
         ledger = json.loads(self.ledger.read_text(encoding="utf-8"))
         self.assertEqual(ledger["spent_usd"], 1.2, "a failed clip still counts against the budget")
         self.assertEqual(ledger["clips"][0]["status"], "failed")
+
+    def test_network_failure_is_recorded_as_failed_without_a_traceback(self) -> None:
+        # URLError is not a RuntimeError: without the broad except, main() would raise instead of
+        # returning EXIT_ERROR and the ledger entry would stay "started" with no error recorded.
+        def refuse(_request, timeout=None):
+            raise urllib.error.URLError("proxy refused")
+
+        with mock.patch("urllib.request.urlopen", refuse), mock.patch("time.sleep"):
+            code, _out, err = self._run("--max-clips", "1")
+        self.assertEqual(code, veo_backdrops.EXIT_ERROR)
+        self.assertIn("proxy refused", err)
+        ledger = json.loads(self.ledger.read_text(encoding="utf-8"))
+        self.assertEqual(ledger["spent_usd"], 1.2, "the reservation still counts")
+        self.assertEqual(ledger["clips"][0]["status"], "failed")
+        self.assertIn("proxy refused", ledger["clips"][0]["error"])
+
+    def test_existing_clip_is_skipped_and_not_billed_again(self) -> None:
+        self.out.mkdir()
+        (self.out / "clip_a.mp4").write_bytes(b"already here")
+        fake = _urlopen_script(
+            json.dumps({"name": "models/veo/operations/op-9"}).encode(),
+            json.dumps(
+                {
+                    "name": "models/veo/operations/op-9",
+                    "done": True,
+                    "response": {"generateVideoResponse": {"generatedSamples": [{"video": {"uri": "https://x/v"}}]}},
+                }
+            ).encode(),
+            b"clip-b-bytes",
+        )
+        with mock.patch("urllib.request.urlopen", fake), mock.patch("time.sleep"):
+            code, out, err = self._run()
+        self.assertEqual(code, veo_backdrops.EXIT_OK, err)
+        self.assertIn("clip_a.mp4 exists, skipping", out)
+        self.assertEqual(len(fake.calls), 3, "only clip_b hits the network: POST, poll, download")
+        self.assertEqual((self.out / "clip_a.mp4").read_bytes(), b"already here")
+        ledger = json.loads(self.ledger.read_text(encoding="utf-8"))
+        self.assertEqual(ledger["spent_usd"], 1.2, "only clip_b is billed")
+        self.assertEqual([c["name"] for c in ledger["clips"]], ["clip_b"])
 
     def test_missing_api_key_is_an_error_before_any_request(self) -> None:
         fake = _urlopen_script()

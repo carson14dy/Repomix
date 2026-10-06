@@ -2,10 +2,13 @@ extends RefCounted
 ## Sfx: deterministic sample rendering (lengths, loudness, onsets, the jump sweep), the
 ## 16-bit WAV packing, and the six-voice prefab playing under the headless Dummy driver.
 ##
-## Dummy driver facts (measured): play() is accepted and `playing` reads true from the next
-## frame on, but the driver never mixes, so get_playback_position() stays 0 and a voice never
-## finishes on its own. Nodes added at process frame 0 are not inside the tree yet, so each
-## prefab test steps one frame before playing.
+## Dummy driver facts (measured with a probe): play() is accepted and `playing` reads true
+## at once; the driver mixes in real time on its own thread (~11.6 ms per 512-frame buffer),
+## so a voice does finish on its own after its wall-clock length. A --fixed-fps headless frame
+## takes well under a millisecond of wall-clock, so a 0.22 s hit is still playing one frame
+## later. Stopped playbacks leave the AudioServer list only on a mix step, hence _drain().
+## Nodes added at process frame 0 are not inside the tree yet (_ready has not run), so each
+## prefab test steps one frame before touching the voices.
 
 const SFX_SCENE_PATH := "res://prefabs/Sfx.tscn"
 ## 2 ms at 44100 Hz.
@@ -111,7 +114,7 @@ func test_to_wav_format_and_length(ctx: TestContext) -> void:
 	ctx.check(stream.format == AudioStreamWAV.FORMAT_16_BITS, "wav is 16-bit")
 	ctx.check(stream.mix_rate == 44100 and not stream.stereo, "wav is 44100 Hz mono")
 	ctx.check(stream.data.size() == 26460 * 2, "ko wav holds 2 bytes per sample")
-	# Clamping: a sample of 2.0 packs as 32767, -2.0 as -32768-ish (clamped to -1.0).
+	# Clamping: 2.0 is clamped to 1.0 (32767) and -2.0 to -1.0 (-32767, symmetric scale).
 	var clipped := Sfx.to_wav(PackedFloat32Array([2.0, -2.0, 0.5]))
 	ctx.check(clipped.data.decode_s16(0) == 32767, "+2.0 clamps to 32767")
 	ctx.check(clipped.data.decode_s16(2) == -32767, "-2.0 clamps to -32767")
@@ -127,17 +130,29 @@ func _voices(sfx: Node) -> Array[AudioStreamPlayer]:
 	return voices
 
 
+## Stop every voice and give the Dummy mixer thread a few buffer periods of wall-clock to
+## erase the stopped playbacks, then one frame for AudioServer.update() to free them.
+## Without this the run ends with "ObjectDB instances leaked" (AudioStreamPlaybackWAV).
+func _drain(ctx: TestContext, voices: Array[AudioStreamPlayer]) -> void:
+	for v in voices:
+		v.stop()
+	OS.delay_msec(50)
+	await ctx.step(1)
+
+
 func test_prefab_plays_under_dummy_driver(ctx: TestContext) -> void:
 	var sfx := ctx.add(load(SFX_SCENE_PATH).instantiate()) as Sfx
 	var voices := _voices(sfx)
 	ctx.check(
 		voices.size() == 6, "Sfx.tscn has 6 AudioStreamPlayer voices (got %d)" % voices.size()
 	)
+	# volume_db is applied in _ready, which has not run at frame 0: check it after a step so
+	# this test does not depend on an earlier test having advanced the tree.
+	await ctx.step(1)
 	ctx.check(
 		voices.all(func(v: AudioStreamPlayer) -> bool: return v.volume_db == -6.0),
 		"every voice starts at master_volume_db (-6 dB)"
 	)
-	await ctx.step(1)
 	sfx.play_hit(true)
 	await ctx.step(1)
 	var playing := voices.filter(func(v: AudioStreamPlayer) -> bool: return v.playing)
@@ -150,6 +165,7 @@ func test_prefab_plays_under_dummy_driver(ctx: TestContext) -> void:
 			stream != null and absf(stream.get_length() - 0.22) <= 0.001,
 			"the playing voice holds the 0.22 s heavy hit"
 		)
+	await _drain(ctx, voices)
 
 
 func test_polyphony_fills_idle_voices_then_steals_oldest(ctx: TestContext) -> void:
@@ -176,3 +192,4 @@ func test_polyphony_fills_idle_voices_then_steals_oldest(ctx: TestContext) -> vo
 		first != null and absf(first.get_length() - 0.12) <= 0.001,
 		"the seventh sound replaced the oldest voice's stream with the 0.12 s swing"
 	)
+	await _drain(ctx, voices)

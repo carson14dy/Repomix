@@ -121,9 +121,10 @@ class Scene:
         for x0, y0, climbs, sway, sway_cycles, sway_phase, brightness in self.motes:
             x = x0 + sway * np.sin(2.0 * np.pi * sway_cycles * phase_t + sway_phase)
             y = (y0 - climbs * self.height * phase_t) % self.height
-            # Twinkle with the climb so a mote fades out before wrapping to the bottom.
-            glow = brightness * (0.5 + 0.5 * np.sin(2.0 * np.pi * (y / self.height) + 1.5))
-            xi, yi = int(round(x)) % self.width, int(round(y))
+            # Dark at the top and bottom rows, brightest mid-screen, so a mote fades out before
+            # its y wraps. x is not periodic: a mote swaying past an edge is clipped there.
+            glow = brightness * (0.5 - 0.5 * np.cos(2.0 * np.pi * y / self.height))
+            xi, yi = int(round(x)), int(round(y))
             y0_, y1_ = max(0, yi - k), min(self.height, yi + k + 1)
             x0_, x1_ = max(0, xi - k), min(self.width, xi + k + 1)
             if y0_ >= y1_ or x0_ >= x1_:

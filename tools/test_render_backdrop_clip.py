@@ -16,6 +16,20 @@ def _scene(seconds: float = 2.0, seed: int = 3) -> rbc.Scene:
     return rbc.Scene(Image.fromarray(pixels), seconds, seed)
 
 
+def _dark_scene() -> rbc.Scene:
+    """A flat dark painting, so a mote's light is the only difference between two frames."""
+    pixels = np.full((36, 64, 3), 20, dtype=np.uint8)
+    return rbc.Scene(Image.fromarray(pixels), 2.0, 3)
+
+
+def _mote_light(scene: rbc.Scene, x: float, y: float) -> np.ndarray:
+    """Per-pixel brightness a single full-brightness, non-swaying mote at (x, y) adds at t = 0."""
+    scene.motes = []
+    base = scene.render_frame(0.0).astype(np.int16)
+    scene.motes = [(x, y, 1, 0.0, 1, 0.0, 1.0)]
+    return np.abs(scene.render_frame(0.0).astype(np.int16) - base).max(axis=2)
+
+
 class RenderBackdropClipTests(unittest.TestCase):
     def test_frame_shape_and_dtype(self) -> None:
         frame = _scene().render_frame(0.7)
@@ -46,6 +60,19 @@ class RenderBackdropClipTests(unittest.TestCase):
         band = scene._mist_band[:, 0, 0]
         self.assertTrue(np.all(band[: int(36 * 0.42)] == 0.0))
         self.assertTrue(np.all(band[int(36 * 0.78) + 1 :] == 1.0))
+
+    def test_motes_fade_out_at_the_wrap_edges(self) -> None:
+        """A mote is dark where y wraps (top and bottom rows) and bright mid-screen."""
+        scene = _dark_scene()
+        self.assertEqual(int(_mote_light(scene, 32.0, 0.0).max()), 0)
+        self.assertLessEqual(int(_mote_light(scene, 32.0, 35.0).max()), 2)
+        self.assertGreaterEqual(int(_mote_light(scene, 32.0, 18.0).max()), 100)
+
+    def test_mote_past_the_left_edge_does_not_wrap_to_the_right(self) -> None:
+        """A mote swaying past x = 0 is clipped there, never stamped at the right edge."""
+        lit_columns = np.flatnonzero(_mote_light(_dark_scene(), -2.0, 18.0).max(axis=0) > 0)
+        self.assertGreater(len(lit_columns), 0)
+        self.assertLessEqual(int(lit_columns.max()), rbc.MOTE_RADIUS)
 
     def test_frame_times_cover_one_loop(self) -> None:
         times = rbc.frame_times(8.0, 30)

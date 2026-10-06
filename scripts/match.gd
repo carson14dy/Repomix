@@ -6,7 +6,6 @@ extends Node
 
 signal stocks_changed(player_index: int, stocks: int)
 signal fighter_koed(player_index: int)
-signal fighter_respawned(player_index: int)
 signal match_ended(winner_index: int)
 signal match_restarted
 
@@ -54,9 +53,11 @@ func _physics_process(_delta: float) -> void:
 			if _respawn_timers[index] <= 0:
 				_respawn_timers.erase(index)
 				player.respawn()
-				fighter_respawned.emit(index)
 		elif player.active and not blast_zone.has_point(player.global_position):
 			_ko(index)
+			# A same-frame double KO must not touch the fighter that just won.
+			if winner_index != 0:
+				return
 
 
 func _ko(index: int) -> void:
@@ -71,6 +72,9 @@ func _ko(index: int) -> void:
 	for other: int in _players:
 		if stocks[other] > 0:
 			winner_index = other
+	# Snapshot the buttons so only a press that begins after the win screen counts.
+	for held_index: int in _attack_held:
+		_attack_held[held_index] = Input.is_action_pressed("p%d_attack" % held_index)
 	match_ended.emit(winner_index)
 
 

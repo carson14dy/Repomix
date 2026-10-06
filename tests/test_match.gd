@@ -73,6 +73,9 @@ func test_leaving_the_bottom_costs_a_stock_and_respawns(ctx: TestContext) -> voi
 	await _ko(ctx, p2)
 	ctx.check(not p2.visible, "a fighter below y 1100 is hidden on the frame it leaves the zone")
 	ctx.check(not bool(p2.get("active")), "the KO'd fighter is inactive")
+	ctx.check(p2.global_position == P2_SPAWN, "the KO parks the body at its spawn (760, 540)")
+	ctx.check_near(p2.get("percentage"), 0.0, 0.01, "the KO resets the 40% to 0")
+	ctx.check(p2.velocity == Vector2.ZERO, "the KO zeroes the velocity")
 	ctx.check(stock_events == [[2, 2]], "stocks_changed(2, 2) fires once (got %s)" % [stock_events])
 	ctx.check(int(pips.get("stocks")) == 2, "P2 stock pips drop to 2")
 	ctx.check(main.get_node("HUD/Root/P1Medallion/Stocks").get("stocks") == 3, "P1 keeps 3")
@@ -81,9 +84,8 @@ func test_leaving_the_bottom_costs_a_stock_and_respawns(ctx: TestContext) -> voi
 	await ctx.step(1)
 	ctx.check(p2.visible, "the fighter respawns 60 frames after the KO")
 	ctx.check(bool(p2.get("active")), "the respawned fighter is active again")
-	ctx.check(p2.global_position == P2_SPAWN, "it respawns at its spawn point (760, 540)")
-	ctx.check_near(p2.get("percentage"), 0.0, 0.01, "respawn resets the 40% to 0")
-	ctx.check(p2.velocity == Vector2.ZERO, "respawn zeroes the velocity")
+	await ctx.step(1)
+	ctx.check(p2.velocity.y > 0.0, "the respawned fighter is simulated again (falls to the spine)")
 
 
 func test_sides_and_top_are_blast_zones(ctx: TestContext) -> void:
@@ -108,6 +110,116 @@ func test_sides_and_top_are_blast_zones(ctx: TestContext) -> void:
 	p2.global_position = Vector2(640, 1050)
 	await ctx.step(1)
 	ctx.check(p2.visible, "y = 1050 is still inside the zone (bottom line 1100)")
+
+
+func test_same_frame_double_ko_spares_the_winner(ctx: TestContext) -> void:
+	var main := await _spawn_main(ctx)
+	if main == null:
+		return
+	var match_node: Match = main.get_node("Match")
+	var p1 := main.get_node("Player1") as CharacterBody2D
+	var p2 := main.get_node("Player2") as CharacterBody2D
+	var winners: Array = []
+	match_node.match_ended.connect(func(index: int) -> void: winners.append(index))
+	for _ko_number in range(2):
+		await _ko(ctx, p1)
+		await ctx.step(RESPAWN_FRAMES)
+	# Player1 is on its last stock; both fighters leave the zone on the same frame.
+	p1.global_position = BELOW_STAGE
+	p2.global_position = BELOW_STAGE
+	await ctx.step(1)
+	ctx.check(winners == [2], "match_ended(2) fires exactly once (got %s)" % [winners])
+	ctx.check(
+		match_node.stocks[1] == 0 and match_node.stocks[2] == 3,
+		"the fighter KO'd first loses; the winner keeps all 3 stocks (got %s)" % [match_node.stocks]
+	)
+	ctx.check(p2.visible and bool(p2.get("active")), "the winner is still on stage")
+	await ctx.step(RESPAWN_FRAMES + 10)
+	ctx.check(p2.visible and winners == [2], "nothing changes while the win screen is up")
+
+
+func test_same_frame_double_ko_on_last_stocks_ends_once(ctx: TestContext) -> void:
+	var main := await _spawn_main(ctx)
+	if main == null:
+		return
+	var match_node: Match = main.get_node("Match")
+	var p1 := main.get_node("Player1") as CharacterBody2D
+	var p2 := main.get_node("Player2") as CharacterBody2D
+	var winners: Array = []
+	match_node.match_ended.connect(func(index: int) -> void: winners.append(index))
+	for _ko_number in range(2):
+		p1.global_position = BELOW_STAGE
+		p2.global_position = BELOW_STAGE
+		await ctx.step(1)
+		await ctx.step(RESPAWN_FRAMES)
+	ctx.check(match_node.stocks == {1: 1, 2: 1}, "both fighters are on their last stock")
+	p1.global_position = BELOW_STAGE
+	p2.global_position = BELOW_STAGE
+	await ctx.step(1)
+	ctx.check(
+		winners == [2], "a last-stock trade ends the match once, Player2 wins (got %s)" % [winners]
+	)
+	ctx.check(match_node.stocks == {1: 0, 2: 1}, "the winner keeps its last stock")
+
+
+func test_attack_held_through_the_final_ko_does_not_rematch(ctx: TestContext) -> void:
+	var main := await _spawn_main(ctx)
+	if main == null:
+		return
+	var match_node: Match = main.get_node("Match")
+	var p1 := main.get_node("Player1") as CharacterBody2D
+	var restarts: Array = []
+	match_node.match_restarted.connect(func() -> void: restarts.append(true))
+	for _ko_number in range(2):
+		await _ko(ctx, p1)
+		await ctx.step(RESPAWN_FRAMES)
+	ctx.press("p2_attack")
+	await ctx.step(2)
+	await _ko(ctx, p1)
+	ctx.check(match_node.winner_index == 2, "Player2 wins on the third KO")
+	await ctx.step(1)
+	ctx.check(restarts.is_empty(), "a button held since before the match ended is not a press")
+	ctx.check(
+		match_node.winner_index == 2 and main.get_node("WinLayer").visible,
+		"the win screen stays up while the old press is held"
+	)
+	ctx.release("p2_attack")
+	await ctx.step(1)
+	ctx.press("p2_attack")
+	await ctx.step(1)
+	ctx.release("p2_attack")
+	ctx.check(restarts.size() == 1, "a fresh press after the win screen rematches once")
+
+
+func test_hit_deferred_onto_the_ko_frame_does_not_land(ctx: TestContext) -> void:
+	var main := await _spawn_main(ctx)
+	if main == null:
+		return
+	var p1 := main.get_node("Player1") as CharacterBody2D
+	var p2 := main.get_node("Player2") as CharacterBody2D
+	p2.global_position = p1.global_position + Vector2(40, 0)
+	await ctx.step(2)
+	var hits: Array = []
+	p1.connect("hit_landed", func(a: int, v: int) -> void: hits.append([a, v]))
+	ctx.press("p1_attack")
+	await ctx.step(1)
+	ctx.release("p1_attack")
+	# Frames 2 and 3 finish the 3-frame startup: the hitbox shape turns on during frame 3, so
+	# frame 4 is the first scan that sees Player2 (overlaps lag a physics step).
+	await ctx.step(2)
+	p2.global_position = BELOW_STAGE
+	await ctx.step(1)
+	ctx.check(not p2.visible, "Player2 is KO'd on the scan frame")
+	ctx.check(
+		hits.is_empty(), "the hit deferred to the end of the KO frame is dropped (got %s)" % [hits]
+	)
+	ctx.check_near(p2.get("percentage"), 0.0, 0.01, "the KO'd fighter takes no damage")
+	ctx.check(p2.get("state") == Player.State.NORMAL, "the KO'd fighter is not stunned")
+	ctx.check(int(p2.get("hitstop_left")) == 0, "the KO'd fighter carries no hitstop")
+	await ctx.step(RESPAWN_FRAMES)
+	ctx.check(p2.visible and int(p2.get("hitstop_left")) == 0, "it respawns with no hitstop")
+	await ctx.step(1)
+	ctx.check(p2.velocity.y > 0.0, "the respawned fighter moves on its first frame")
 
 
 func test_ko_hides_the_body_from_hitboxes(ctx: TestContext) -> void:
@@ -174,9 +286,14 @@ func test_attack_press_rematches_after_the_match(ctx: TestContext) -> void:
 	var restarts: Array = []
 	match_node.match_restarted.connect(func() -> void: restarts.append(true))
 	p1.call("take_damage", 0.0, Vector2(1, 0), 30.0)
-	for _ko_number in range(3):
+	for _ko_number in range(2):
 		await _ko(ctx, p1)
 		await ctx.step(RESPAWN_FRAMES)
+	# The winner-to-be is damaged and off its spawn, so the rematch has something to reset.
+	p2.call("take_damage", 0.0, Vector2(1, 0), 30.0)
+	p2.global_position = Vector2(900, 540)
+	await _ko(ctx, p1)
+	await ctx.step(RESPAWN_FRAMES)
 	ctx.check(match_node.winner_index == 2, "Player2 wins after three Player1 KOs")
 	ctx.press("p2_attack")
 	await ctx.step(1)
@@ -189,6 +306,12 @@ func test_attack_press_rematches_after_the_match(ctx: TestContext) -> void:
 	ctx.check(p1.visible and p2.visible, "both fighters are on stage again")
 	ctx.check(p1.global_position == Vector2(520, 540), "Player1 is back at its spawn")
 	ctx.check_near(p1.get("percentage"), 0.0, 0.01, "Player1's damage is reset")
+	ctx.check(p2.global_position == P2_SPAWN, "the winner is back at its spawn (760, 540)")
+	ctx.check_near(p2.get("percentage"), 0.0, 0.01, "the winner's 30% is reset")
+	ctx.check(
+		(main.get_node("HUD/Root/P2Medallion/P2Label") as Label).text == "0%",
+		"P2's medallion reads 0% after the rematch"
+	)
 	ctx.check(not main.get_node("WinLayer").visible, "WinLayer hides on rematch")
 	ctx.check(
 		int(main.get_node("HUD/Root/P1Medallion/Stocks").get("stocks")) == 3,
@@ -207,9 +330,12 @@ func test_ko_plays_a_sound_and_shakes_the_camera(ctx: TestContext) -> void:
 	var p2 := main.get_node("Player2") as CharacterBody2D
 	await _ko(ctx, p2)
 	await ctx.step(1)
-	var voice_playing := false
+	# The KO boom is the only 0.6 s clip (Sfx.KO_SECONDS); the landing thuds from the spawn
+	# drop are 0.08 s, so a voice holding a 0.6 s stream can only have come from play_ko().
+	var ko_voice := false
 	for child in sfx.get_children():
-		if child is AudioStreamPlayer and child.playing:
-			voice_playing = true
-	ctx.check(voice_playing, "an Sfx voice is playing the frame after a KO")
+		if child is AudioStreamPlayer and child.stream is AudioStreamWAV:
+			if absf(child.stream.get_length() - Sfx.KO_SECONDS) < 0.001:
+				ko_voice = true
+	ctx.check(ko_voice, "an Sfx voice holds the 0.6 s KO clip the frame after a KO")
 	ctx.check(camera.offset != Vector2.ZERO, "the camera shakes after a KO")

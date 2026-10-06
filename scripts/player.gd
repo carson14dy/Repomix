@@ -164,6 +164,7 @@ func _reset_at_spawn() -> void:
 	velocity = Vector2.ZERO
 	percentage = 0.0
 	state = State.NORMAL
+	hitstop_left = 0
 	_stun_frames_left = 0
 	_jump_buffer = 0
 	_air_jumps_left = air_jumps

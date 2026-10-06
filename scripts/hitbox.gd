@@ -75,6 +75,9 @@ func _physics_process(_delta: float) -> void:
 
 
 func _land(victim: Player, dir: Vector2) -> void:
+	# The Match can KO the victim between the scan and this deferred flush.
+	if not victim.active:
+		return
 	victim.take_damage(_base_knockback, dir, _damage)
 	attacker.apply_hitstop(attacker.hitstop_frames)
 	victim.apply_hitstop(attacker.hitstop_frames)

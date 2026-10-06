@@ -237,7 +237,7 @@ gdlint scripts tests tools && gdformat --check scripts tests tools
 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" $GODOT --path . \
   --rendering-driver opengl3 --audio-driver Dummy --quit-after 120 2>&1 | grep -iE "script error|^error"
 
-# Refresh docs/screenshot-main.png, docs/screenshot-hit.png and docs/screenshot-zoom.png.
+# Refresh docs/screenshot-main.png, -hit.png, -zoom.png and -win.png.
 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" $GODOT --path . \
   --rendering-driver opengl3 --audio-driver Dummy --script tools/screenshot.gd
 ```

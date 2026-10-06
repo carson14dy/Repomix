@@ -12,6 +12,11 @@ signal jumped(player_index: int, air: bool)
 
 enum State { NORMAL, KNOCKBACK }
 
+## Sprite per player slot when nothing (Main.tscn's MatchConfig pick) overrides it.
+const DEFAULT_SPRITES := {1: "res://assets/sprites/kage.png", 2: "res://assets/sprites/ignis.png"}
+## Collider bottom in Player space (the 28x56 body is centred on the origin).
+const FEET_Y := 28.0
+
 @export_range(1, 2) var player_index: int = 1
 @export_enum("Right:1", "Left:-1") var start_facing: int = 1
 
@@ -81,9 +86,10 @@ func _ready() -> void:
 	facing = start_facing
 	_air_jumps_left = air_jumps
 	_hitbox.attacker = self
-	if player_index == 2:
-		_sprite.texture = load("res://assets/sprites/ignis.png")
+	var default_sprite: String = DEFAULT_SPRITES[player_index]
+	set_fighter_sprite(load(default_sprite))
 	_apply_facing()
+	_sync_held_buttons()
 
 
 func _physics_process(delta: float) -> void:
@@ -104,6 +110,10 @@ func _physics_process(delta: float) -> void:
 	var on_floor := is_on_floor()
 	if on_floor:
 		_air_jumps_left = air_jumps
+	# Before the attack starts, so attack_started and the hitbox agree on a turn-and-swing frame.
+	if state == State.NORMAL and axis != 0.0:
+		facing = signi(int(signf(axis)))
+		_apply_facing()
 
 	match state:
 		State.NORMAL:
@@ -119,9 +129,15 @@ func _physics_process(delta: float) -> void:
 
 	if is_on_floor() and not on_floor:
 		landed.emit(player_index)
-	if state == State.NORMAL and axis != 0.0:
-		facing = signi(int(signf(axis)))
-		_apply_facing()
+
+
+## Swap the fighter art and anchor its feet to the collider bottom whatever the texture height.
+## The Sprite2D node sits at FEET_Y so its scale and rotation (fighter_visual.gd) pivot at the
+## feet; the offset lifts the art so its bottom edge is on the node origin (Kage 64 px ->
+## offset.y -32, Ignis 72 px -> -36). main.gd calls this with the Roster pick.
+func set_fighter_sprite(texture: Texture2D) -> void:
+	_sprite.texture = texture
+	_sprite.offset.y = -texture.get_height() / 2.0
 
 
 ## Knockback speed = base_knockback * (percentage / 10), with this hit's damage already added.
@@ -168,9 +184,18 @@ func _reset_at_spawn() -> void:
 	_jump_buffer = 0
 	_air_jumps_left = air_jumps
 	_attack_frames_left = 0
-	_hitbox.deactivate()
+	hitstop_left = 0
+	_hitbox.reset()
 	_sprite.modulate = Color.WHITE
+	_sync_held_buttons()
 	percentage_changed.emit(player_index, percentage)
+
+
+## Buttons already down when the fighter (re)enters play (the rematch press, a lock-in held
+## through the FIGHT flash, a jump pressed during the respawn wait) are not fresh presses.
+func _sync_held_buttons() -> void:
+	_jump_held = Input.is_action_pressed(_action("jump"))
+	_attack_held = Input.is_action_pressed(_action("attack"))
 
 
 func _apply_horizontal(axis: float, on_floor: bool, delta: float) -> void:

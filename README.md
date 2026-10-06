@@ -4,12 +4,16 @@ A local-multiplayer 2D gothic platform fighter built in **Godot 4.4+** (GDScript
 Compatibility renderer). Two fighters brawl on the spine of a dead dragon in the
 **Wyrm's Ossuary**: damage percentages, knockback that grows with damage, hitstop, double
 jumps, three stocks each and a blast zone on every side, a camera that frames both players,
-procedural sound, a looping video backdrop and a medallion HUD with stock pips. Lose your last
-stock and the other fighter wins; one attack press starts the rematch. The genre is inspired
-by games like Brawlhalla; all names, art and code here are original.
+procedural sound, a looping video backdrop and a medallion HUD with stock pips. A title screen
+leads to a character select (three fighters) and then the arena, against a friend or a CPU
+opponent. Lose your last stock and the other fighter wins; one attack press starts the
+rematch, Down goes back to the character select. The genre is inspired by games like
+Brawlhalla; all names, art and code here are original.
 
 Local multiplayer only: there is no online play and none is planned.
 
+![The title screen](docs/screenshot-title.png)
+![The character select with Player 1 locked in](docs/screenshot-select.png)
 ![Wyrm's Ossuary at the start of a match](docs/screenshot-main.png)
 ![Ignis taking a 24% hit](docs/screenshot-hit.png)
 ![The camera zoomed out with the fighters far apart](docs/screenshot-zoom.png)
@@ -20,15 +24,79 @@ Local multiplayer only: there is no online play and none is planned.
 1. Install [Godot 4.4 or newer](https://godotengine.org/download) (the standard build; no
    .NET needed).
 2. In the Project Manager choose **Import**, select this folder's `project.godot`, then **Edit**.
-3. Press **F5** (Run Project). `scenes/Main.tscn` is the main scene.
+3. Press **F5** (Run Project). `scenes/Title.tscn` is the main scene; it leads to
+   `scenes/CharacterSelect.tscn` and then the arena, `scenes/Main.tscn`.
 
 Or from a terminal, with `GODOT` pointing at your Godot binary:
 
 ```bash
 GODOT=/path/to/godot      # e.g. ~/Downloads/Godot_v4.4.1-stable_linux.x86_64
-$GODOT --path .            # run the main scene
+$GODOT --path .            # run the game from the title screen
 $GODOT --path . --editor   # open the editor
 ```
+
+## Game flow
+
+```
+Title ──Versus / Versus CPU──> Character select ──FIGHT──> Arena ──last stock──> Win screen
+  ^                                  ^                                   │
+  └──── Player 1's Down ─────────────┴──────── Down (either player) ─────┤
+                                                   Attack (either player) ┴──> rematch
+```
+
+- **Title** (`scripts/title.gd`): *Versus*, *Versus CPU*, *Controls*. Jump moves the cursor up,
+  Down moves it down, Attack confirms, for either player (the mouse works too). *Controls*
+  opens a panel listing both keyboard layouts read from the InputMap. Picking a mode writes
+  `MatchConfig.p2_is_cpu` and loads the character select.
+- **Character select** (`scripts/character_select.gd`): each player browses the roster with
+  Left / Right in their own column (portrait, title, Speed / Power / Defense / Recovery bars,
+  description) and locks in with Attack; Down unlocks, and Player 1's Down with nothing locked
+  returns to the title. Against the CPU the P2 column is picked automatically (the fighter after
+  Player 1's in roster order) and Player 1's lock-in starts the match. Once everyone is locked
+  in, `MatchConfig.p1_character` / `p2_character` are written, "FIGHT" flashes for 30 physics
+  frames and `scenes/Main.tscn` loads. A key still held from the title does not count as a
+  press.
+- **Arena** (`scripts/main.gd`): applies `MatchConfig` on `_ready`: each `Player` gets the
+  picked fighter's sprite through `Player.set_fighter_sprite()` (the Sprite2D sits at the
+  collider bottom and the art is lifted by `offset.y = -height / 2`, so squash and lean pivot
+  at the feet), the HUD medallions take the fighter's name and portrait,
+  `Match.stocks_per_player` is set from `MatchConfig.stocks`, and in CPU mode a
+  `BotController` is added under `Main` driving Player 2.
+- **Win screen**: "<fighter> wins" in the winner's colour. Either player's Attack rematches
+  with the same settings; either player's Down returns to the character select.
+
+### CPU opponent
+
+Choose *Versus CPU* on the title. `scripts/bot_controller.gd` presses Player 2's `p2_*`
+actions through `Input.action_press` / `action_release`, exactly like a keyboard, so
+`player.gd` has no bot code. Every decision comes from one `RandomNumberGenerator` seeded with
+`seed` (11), so the same seed against the same fight replays the same match. Difficulty tiers
+(`BotController.Difficulty`, from `MatchConfig.difficulty`: 0 EASY, 1 NORMAL, 2 BRUTAL):
+
+| Tier   | Decision interval (frames) | Recover | Attack | Jump | Idle |
+| ------ | -------------------------- | ------- | ------ | ---- | ---- |
+| EASY   | 12                         | 0.5     | 0.35   | 0.3  | 0.25 |
+| NORMAL | 6                          | 0.8     | 0.7    | 0.6  | 0.1  |
+| BRUTAL | 2                          | 1.0     | 1.0    | 0.9  | 0.0  |
+
+Rules in order: off stage (x outside 190..1090) steer back to the centre and jump while
+falling with probability *Recover*; else idle with probability *Idle*; else run toward the
+opponent until within 48 x 40 px (the hitbox's reach), fast-fall when falling more than 160 px
+above the floor, attack in range with probability *Attack*, jump when the opponent is more than
+60 px higher with probability *Jump*. The bot lets go of everything the frame after it is hit,
+while either fighter is KO'd (`Player.active` is false between `ko()` and `respawn()`), and
+while the win screen is up, so it never starts the rematch by itself. `MatchConfig.difficulty`
+defaults to 1 (NORMAL); no menu changes it yet.
+
+### MatchConfig and Roster
+
+`scripts/match_config.gd` (`MatchConfig`) holds the match settings as static variables so the
+menus can write them before the arena exists: `p1_character` / `p2_character` (roster ids,
+default `"kage"` / `"ignis"`), `p2_is_cpu` (false), `difficulty` (1) and `stocks` (3);
+`character(index)` returns the id in a player slot and `reset()` restores the defaults.
+`scripts/roster.gd` (`Roster`) is the fighter table the menus and the arena read: `ids()` gives
+the select order, `get_def(id)` a dictionary with `name`, `title`, `colour`, `portrait`,
+`sprite`, the four 1-10 stats and `description`.
 
 ## Controls
 
@@ -45,12 +113,22 @@ Bindings live in `project.godot` under `[input]` as actions `p1_left`, `p1_right
 (`"p%d_%s" % [player_index, name]`), so rebinding in **Project > Project Settings > Input Map**
 needs no code changes. Joypad bindings are per device: device 0 drives P1, device 1 drives P2.
 
+Menus use the same actions: Jump / Down move the title cursor, Left / Right browse the
+roster, Attack confirms or locks in, Down backs out (Player 1's Down on the select returns to
+the title; either player's Down on the win screen returns to the select).
+
 ## Roster and stage
 
-| Slot     | Fighter   | Colour             | Sprite                      |
-| -------- | --------- | ------------------ | --------------------------- |
-| Player 1 | **Kage**  | cyan `#38bdf8`     | `assets/sprites/kage.png`, 64 px tall  |
-| Player 2 | **Ignis** | crimson `#ef4444`  | `assets/sprites/ignis.png`, 72 px tall |
+| Fighter    | Title                    | Speed / Power / Defense / Recovery | Sprite |
+| ---------- | ------------------------ | ---------------------------------- | ------ |
+| **Kage**   | The Shadow Weaver        | 9 / 6 / 5 / 9                      | `assets/sprites/kage.png`, 64 px tall, `kage_portrait.png` |
+| **Ignis**  | The Spectral Dreadnought | 5 / 9 / 9 / 5                      | `assets/sprites/ignis.png`, 72 px tall, `ignis_portrait.png` |
+| **Zephyr** | The Tempest Valkyrie     | 7 / 7 / 6 / 10                     | none yet: borrows Kage's sprite, a placeholder disc on the select and in the HUD medallion |
+
+Defaults are Kage for Player 1 and Ignis for Player 2. Any fighter can be picked in either
+slot; the fighters share one set of tunables today (the stats are the design card, see
+`docs/DESIGN.md`). Player 1 is always cyan `#38bdf8` and Player 2 crimson `#ef4444` in the HUD,
+slash arcs, hit sparks and the chevron over each fighter's head, whoever they picked.
 
 Stage: **Wyrm's Ossuary**. The main platform is a dragon's spine with a ribcage hanging
 under it, the two one-way platforms are floating bone shards, and behind it all a looping
@@ -58,26 +136,38 @@ video of the painted dragon skull, ruins and mist (see [Backdrop clip](#backdrop
 palette (`scripts/brawl_theme.gd`, `BrawlTheme`) is bone white over teal-grey shadows; damage
 read-outs go white, yellow (35%), orange (75%), red (120%).
 
-Match rules: 3 stocks each. A fighter whose position leaves the blast zone
-(-260, -420)..(1540, 1100) loses a stock, vanishes, and respawns at its spawn point at 0% one
-second (60 frames) later. The third KO ends the match: the win screen names the winner and
-either player's attack press starts a rematch at 3 stocks.
+Match rules: `MatchConfig.stocks` (3) stocks each. A fighter whose position leaves the blast
+zone (-260, -420)..(1540, 1100) loses a stock, vanishes, and respawns at its spawn point at 0%
+one second (60 frames) later. The last KO ends the match: the win screen names the winning
+fighter, either player's Attack starts a rematch with the same settings, and either player's
+Down returns to the character select.
 
 ## Folder layout
 
 ```
-project.godot            settings, input map, physics layers, display
+project.godot            settings, input map, physics layers, display, main scene (Title)
+scenes/Title.tscn        title screen: wordmark, Versus / Versus CPU / Controls menu, panel
+scenes/CharacterSelect.tscn  two roster columns with portraits, stat bars, FIGHT flash
 scenes/Main.tscn         the arena: VideoBackdrop, StageArt, Mist, floor + two shards,
                          Player1/Player2, Vfx, fight camera, Match, Sfx, vignette, medallion
                          HUD, win layer
-scripts/main.gd          wiring: camera targets, backdrop parallax, fighter and Match signals
-                         -> Vfx / shake / Sfx / HUD stocks / win screen
+scripts/title.gd         title menu: cursor, mode -> MatchConfig.p2_is_cpu, controls panel
+scripts/character_select.gd  roster browsing, lock-in, CPU auto-pick, writes MatchConfig
+scripts/menu_input.gd    menu edge detection over InputMap actions, key names for hints
+scripts/match_config.gd  MatchConfig: static match settings written by the menus
+scripts/roster.gd        Roster: fighter table (name, title, colour, portrait, sprite, stats)
+scripts/portrait_placeholder.gd  stand-in portrait disc for fighters without art (select, HUD)
+scripts/main.gd          wiring: MatchConfig -> sprites / HUD / stocks / BotController, camera
+                         targets, backdrop parallax, fighter and Match signals -> Vfx / shake /
+                         Sfx / HUD stocks / win screen, Down -> character select
+scripts/bot_controller.gd  CPU opponent pressing one player's InputMap actions
 scripts/player.gd        fighter movement, fast-fall, air friction, jump buffer, double jump,
                          attack, percentage / take_damage(), knockback state, hitstop,
                          ko() / respawn()
 scripts/match.gd         round flow: stocks, blast zone, KO -> respawn timer, win, rematch
 scripts/hitbox.gd        Area2D attack hitbox (one hit per activation, hits resolved at tick end)
-scripts/fighter_visual.gd sprite feel: idle bob, run lean, air stretch, landing squash, shadow
+scripts/fighter_visual.gd sprite feel: idle bob, run lean, air stretch, landing squash, shadow,
+                         player-colour chevron
 scripts/fight_camera.gd  two-target camera: midpoint framing, distance zoom, shake
 scripts/stage_art.gd     procedural bone spine, ribs and shards (static _draw)
 scripts/mist.gd          drifting translucent mist blobs
@@ -87,8 +177,9 @@ scripts/medallion_ring.gd coloured ring around each portrait
 scripts/stock_pips.gd    row of stock diamonds under each medallion
 scripts/sfx.gd           procedural sound effects (swing, hits, jump, land, KO), six voices
 scripts/video_backdrop.gd looping muted video layer with a poster fallback
-scripts/brawl_theme.gd   palette constants, player_color(), player_name(), percent_color()
+scripts/brawl_theme.gd   palette constants, player_color(), percent_color()
 prefabs/Player.tscn      CharacterBody2D + Sprite2D + CollisionShape2D + Hitbox (Area2D)
+prefabs/BotController.tscn  Node running bot_controller.gd, added under Main in CPU mode
 prefabs/Platform.tscn    one-way StaticBody2D platform, 240x20 (no visual; StageArt draws it)
 prefabs/Sfx.tscn         Sfx node with six AudioStreamPlayer voices
 prefabs/VideoBackdrop.tscn CanvasLayer -10: poster TextureRect + VideoStreamPlayer
@@ -102,8 +193,12 @@ tools/process_art.gd     art pipeline: art-src -> backdrops + sprites + portrait
 tools/render_backdrop_clip.py  renders the looping backdrop clip from the painting
 tools/veo_backdrops.py   generates backdrop clips with Veo under a hard budget (docs/VEO.md)
 tools/convert_backdrop.sh mp4 -> Ogg Theora + poster PNG for VideoBackdrop
-tools/screenshot.gd      captures docs/screenshot-*.png from Main.tscn under Xvfb
+tools/screenshot.gd      captures docs/screenshot-main/hit/zoom/win.png from Main.tscn under Xvfb
+tools/screenshot_menus.gd captures docs/screenshot-title.png and -select.png the same way
 tests/                   headless test runner (run_tests.gd), TestContext, test_*.gd suites
+docs/DESIGN.md           game design reference: what is implemented, with the numbers, and
+                         what is planned
+docs/VEO.md              the Veo backdrop pipeline: prompts, budget policy, status
 docs/                    review screenshots (docs/screenshot-*.png); .gdignore keeps Godot
                          from importing them as textures
 ```
@@ -126,7 +221,9 @@ into game assets:
   despilled from their opaque neighbours, the sprite is cropped to its used rect plus a 2 px
   margin and Lanczos-resized to 64 px (Kage) or 72 px (Ignis) tall. Both face right.
 - `assets/sprites/kage_portrait.png`, `ignis_portrait.png`: 96x96 medallions cut from the head
-  band of the keyed sprite, clipped to a circle of radius 46 and filled with slate.
+  band (top 32%) of the keyed sprite, centred on the crown (top 8%, so a trailing hood or
+  pauldron does not pull the face sideways), clipped to a circle of radius 46 and filled with
+  slate.
 
 To regenerate after replacing a source image:
 
@@ -210,8 +307,10 @@ px, px/s, px/s², physics frames at 60 Hz.
 | `lerp_factor` | 0.08    | per-frame fraction the position and zoom move toward their targets |
 | `y_offset`    | -40.0   | frames the midpoint this many px above the fighters |
 
-Target zoom is `clamp(700 / (distance + 300), min_zoom, max_zoom)`; the camera limits
-`(-200, -240)..(1480, 960)` keep the view on the stage.
+Target zoom is `clamp(700 / (distance + 300), min_zoom, max_zoom)`; the camera limits are
+the blast zone, `(-260, -420)..(1540, 1100)`, so a live fighter is always on screen, and their
+1800x1520 span holds the widest view (1778x1000 at `min_zoom`), so the camera keeps tracking
+the midpoint at every zoom.
 
 ## Tests and static checks
 
@@ -233,13 +332,17 @@ $GODOT --headless --path . --fixed-fps 60 --script tests/run_tests.gd 2>&1 | gre
 # Lint + formatting (pip install gdtoolkit). "gdformat <files>" rewrites in place.
 gdlint scripts tests tools && gdformat --check scripts tests tools
 
-# Run Main.tscn for 2 s with software rendering (Linux, needs xvfb). Must print nothing.
+# Run the game (Title.tscn) for 2 s with software rendering (Linux, needs xvfb). Must print nothing.
 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" $GODOT --path . \
   --rendering-driver opengl3 --audio-driver Dummy --quit-after 120 2>&1 | grep -iE "script error|^error"
 
-# Refresh docs/screenshot-main.png, docs/screenshot-hit.png and docs/screenshot-zoom.png.
+# Refresh docs/screenshot-main.png, -hit.png, -zoom.png and -win.png.
 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" $GODOT --path . \
   --rendering-driver opengl3 --audio-driver Dummy --script tools/screenshot.gd
+
+# Refresh docs/screenshot-title.png and -select.png.
+LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" $GODOT --path . \
+  --rendering-driver opengl3 --audio-driver Dummy --script tools/screenshot_menus.gd
 ```
 
 Tests are plain GDScript: `tests/run_tests.gd` discovers `tests/test_*.gd`, instantiates each
@@ -250,8 +353,13 @@ a default fails the test that encodes it. `tests/test_art_assets.gd` checks the 
 outputs (sizes, keyed corners, circular portraits); `tests/test_scenes.gd` checks the arena
 layers, HUD tree and camera; `tests/test_vfx_hud.gd` checks effect lifetimes and the HUD;
 `tests/test_match.gd` drives KOs, respawns, the win screen and the rematch through
-`scenes/Main.tscn`; `tests/test_sfx.gd` and `tests/test_video_backdrop.gd` cover the sound
-renderer and the video layer. The Python tools have their own suites:
+`scenes/Main.tscn`; `tests/test_arena_config.gd` checks that `MatchConfig` reaches the arena
+(sprites, HUD names and portraits, stocks, the bot, Down back to the select);
+`tests/test_menus.gd` drives the title and character select through the actions;
+`tests/test_bot.gd` drives the CPU against a fighter on a test floor; `tests/test_sfx.gd` and
+`tests/test_video_backdrop.gd` cover the sound renderer and the video layer. Menus and the
+arena have an `@export var change_scenes` that tests set false, so scene changes become
+`navigate(scene_path)` signals. The Python tools have their own suites:
 `python3 -m unittest tools.test_veo_backdrops tools.test_render_backdrop_clip`.
 
 ## What is implemented / next steps
@@ -268,7 +376,13 @@ Implemented:
   `base × (percentage / 10)` away from the attacker with upward lift, a knockback stun state,
   and **hitstop**: both fighters freeze for `hitstop_frames` when a hitbox connects.
 - Round flow: 3 stocks each, a blast zone on all four sides, a one-second respawn at 0%, a
-  win screen naming the winner, and a rematch on either fighter's attack press.
+  win screen naming the winning fighter, a rematch on either fighter's attack press and Down
+  back to the character select.
+- Screens: a title (Versus, Versus CPU, Controls) and a character select with the three-fighter
+  roster, both driven by the fight actions; the choices travel to the arena through
+  `MatchConfig` and `Roster` (sprite, HUD name and portrait, stocks).
+- A CPU opponent (`BotController`, three difficulty tiers, seeded) that plays Player 2 through
+  the same InputMap actions and sleeps on the win screen.
 - Presentation: the Wyrm's Ossuary (looping video of the painted skull with parallax,
   procedural bone spine and ribs, floating shards, drifting mist, vignette), Kage and Ignis
   sprites with idle bob / run lean / air stretch / landing squash, a two-target fight camera
@@ -280,6 +394,8 @@ Not yet:
 
 - Dodge / dash, wall slide, ledge grab.
 - Weapons and more than one attack per fighter.
-- More fighters (Zephyr is next).
+- Zephyr's sprite and portrait, and per-fighter tunables (the roster stats are design cards).
+- A difficulty and stock-count menu (`MatchConfig.difficulty` and `stocks` are set but only
+  the defaults are used), a pause screen and victory stats.
 - A Veo-generated backdrop (the pipeline is ready; see `docs/VEO.md` for why the clip in the
-  repository is rendered procedurally instead), a title screen and a controls screen.
+  repository is rendered procedurally instead).

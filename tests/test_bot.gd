@@ -157,3 +157,29 @@ func test_disabling_releases_held_actions(ctx: TestContext) -> void:
 	await ctx.step(5)
 	ctx.check(not _any_p2_pressed(), "a disabled bot stays quiet on later frames")
 	_release_p2(ctx)
+
+
+# f. A KO'd fighter (Player.active false until respawn) has nobody to steer, and a KO'd
+#    opponent nobody to chase: the bot lets go and idles until both are back, then resumes.
+func test_bot_idles_while_either_fighter_is_knocked_out(ctx: TestContext) -> void:
+	ctx.make_floor(FLOOR_CENTER, FLOOR_SIZE)
+	var p1 := ctx.spawn_player(1, P1_SPAWN)
+	var p2 := ctx.spawn_player(2, P2_SPAWN)
+	_spawn_bot(ctx, p2, p1)
+	await ctx.step(12)
+	ctx.check(Input.is_action_pressed("p2_left"), "bot is holding p2_left while approaching")
+	p2.call("ko")
+	await ctx.step(1)
+	ctx.check(
+		not _any_p2_pressed(), "the bot releases everything the frame after its fighter is KO'd"
+	)
+	await ctx.step(6)
+	ctx.check(not _any_p2_pressed(), "and presses nothing while the fighter is inactive")
+	p2.call("respawn")
+	p1.call("ko")
+	await ctx.step(6)
+	ctx.check(not _any_p2_pressed(), "a KO'd opponent keeps the bot idle too")
+	p1.call("respawn")
+	await ctx.step(6)
+	ctx.check(Input.is_action_pressed("p2_left"), "the bot resumes the chase once both are active")
+	_release_p2(ctx)

@@ -55,7 +55,7 @@ func _ready() -> void:
 
 
 func _physics_process(_delta: float) -> void:
-	for player_index in [1, 2]:
+	for player_index: int in [1, 2]:
 		var up := _menu_input.just_pressed("p%d_jump" % player_index)
 		var down := _menu_input.just_pressed("p%d_down" % player_index)
 		var confirm := _menu_input.just_pressed("p%d_attack" % player_index)
@@ -116,7 +116,7 @@ func _on_item_gui_input(event: InputEvent, index: int) -> void:
 
 
 func _fill_controls_panel() -> void:
-	for player_index in [1, 2]:
+	for player_index: int in [1, 2]:
 		var actions: Array[String] = []
 		var keys: Array[String] = []
 		for row: Array in CONTROL_ROWS:

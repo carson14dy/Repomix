@@ -45,7 +45,7 @@ func _ready() -> void:
 		"Left and right browse the roster, attack locks in. Player 1's %s returns to the title."
 		% MenuInput.key_label("p1_down")
 	)
-	for player_index in [1, 2]:
+	for player_index: int in [1, 2]:
 		var colour := BrawlTheme.player_color(player_index)
 		var column := _column(player_index)
 		(column.get_node("Rule") as ColorRect).color = colour
@@ -59,7 +59,7 @@ func _physics_process(_delta: float) -> void:
 	if _flash_left >= 0:
 		_tick_flash()
 		return
-	for player_index in [1, 2]:
+	for player_index: int in [1, 2]:
 		var left := _menu_input.just_pressed("p%d_left" % player_index)
 		var right := _menu_input.just_pressed("p%d_right" % player_index)
 		var confirm := _menu_input.just_pressed("p%d_attack" % player_index)
@@ -126,7 +126,7 @@ func _tick_flash() -> void:
 func _refresh() -> void:
 	if MatchConfig.p2_is_cpu:
 		_selection[2] = (_selection[1] + 1) % _ids.size()
-	for player_index in [1, 2]:
+	for player_index: int in [1, 2]:
 		var def := Roster.get_def(selected_id(player_index))
 		var column := _column(player_index)
 		var portrait := column.get_node("Portrait") as TextureRect

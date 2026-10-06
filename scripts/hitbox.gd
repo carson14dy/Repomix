@@ -37,6 +37,12 @@ func deactivate() -> void:
 	_shape.disabled = true
 
 
+## Off and out of hitstop: the owner is back at its spawn point.
+func reset() -> void:
+	deactivate()
+	_hitstop_left = 0
+
+
 func set_facing(facing: int) -> void:
 	position.x = absf(_base_x) * facing
 
@@ -74,7 +80,11 @@ func _physics_process(_delta: float) -> void:
 		_frames_left -= 1
 
 
+## Re-checks `active`: the Match (processed after the players) may have KO'd either fighter
+## between the scan and this deferred call.
 func _land(victim: Player, dir: Vector2) -> void:
+	if not victim.active or not attacker.active:
+		return
 	victim.take_damage(_base_knockback, dir, _damage)
 	attacker.apply_hitstop(attacker.hitstop_frames)
 	victim.apply_hitstop(attacker.hitstop_frames)

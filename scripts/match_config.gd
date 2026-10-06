@@ -10,6 +10,11 @@ static var difficulty: int = 1
 static var stocks: int = 3
 
 
+## Roster id of the fighter in a player slot.
+static func character(index: int) -> String:
+	return p2_character if index == 2 else p1_character
+
+
 static func reset() -> void:
 	p1_character = "kage"
 	p2_character = "ignis"

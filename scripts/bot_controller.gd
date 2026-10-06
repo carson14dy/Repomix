@@ -79,9 +79,10 @@ func _physics_process(_delta: float) -> void:
 	if not enabled or not is_instance_valid(_me) or not is_instance_valid(_opponent):
 		_release_all()
 		return
-	# Being hit is a reflex, not a decision: let go the very next frame so a held direction
-	# never steers the fighter the moment control returns (decision: checked every frame).
-	if _me.state == Player.State.KNOCKBACK:
+	# A KO'd fighter (Player.active false until respawn) has nobody to steer, a KO'd opponent
+	# nobody to chase. Being hit is a reflex, not a decision: let go the very next frame so a
+	# held direction never steers the fighter the moment control returns (checked every frame).
+	if not _me.active or _inactive(_opponent) or _me.state == Player.State.KNOCKBACK:
 		_release_all()
 		return
 	_frame += 1
@@ -124,6 +125,12 @@ func _recover(pos: Vector2) -> void:
 	_set_held("down", false)
 	if _me.velocity.y > 0.0 and _rng.randf() < _tune("recover"):
 		_tap("jump")
+
+
+## True for a Player between ko() and respawn(); a plain Node2D opponent is always there.
+func _inactive(node: Node2D) -> bool:
+	var player := node as Player
+	return player != null and not player.active
 
 
 func _tune(key: String) -> float:

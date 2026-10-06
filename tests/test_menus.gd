@@ -64,6 +64,7 @@ func test_title_down_then_attack_picks_versus_cpu(ctx: TestContext) -> void:
 		navigated.size() == 1 and navigated[0] == SELECT_PATH,
 		"navigate emitted once with the CharacterSelect path (got %s)" % [navigated]
 	)
+	MatchConfig.reset()
 
 
 func test_title_p2_actions_drive_the_menu(ctx: TestContext) -> void:
@@ -167,6 +168,7 @@ func test_character_select_cpu_mode_starts_on_p1_lock_in(ctx: TestContext) -> vo
 	MatchConfig.p2_is_cpu = true
 	var select := _spawn(ctx, SELECT_PATH)
 	if select == null:
+		MatchConfig.reset()
 		return
 	var starts: Array[int] = []
 	select.connect("start_requested", func() -> void: starts.append(1))
@@ -194,6 +196,7 @@ func test_character_select_ignores_a_key_still_held_from_the_title(ctx: TestCont
 	ctx.press("p1_attack")
 	var select := _spawn(ctx, SELECT_PATH)
 	if select == null:
+		MatchConfig.reset()
 		return
 	var starts: Array[int] = []
 	select.connect("start_requested", func() -> void: starts.append(1))
@@ -231,6 +234,7 @@ func test_zephyr_uses_the_placeholder_portrait(ctx: TestContext) -> void:
 	MatchConfig.p1_character = "zephyr"
 	var select := _spawn(ctx, SELECT_PATH)
 	if select == null:
+		MatchConfig.reset()
 		return
 	await ctx.step(1)
 	ctx.check(select.call("selected_id", 1) == "zephyr", "the select opens on MatchConfig's pick")

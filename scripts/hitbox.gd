@@ -11,6 +11,9 @@ var _damage: float = 0.0
 var _base_knockback: float = 0.0
 var _already_hit: Array[Player] = []
 var _base_x: float = 0.0
+## Own copy of the attacker's hitstop: children process after their parent, so reading
+## attacker.hitstop_left here would see it already counted down and resume a frame early.
+var _hitstop_left: int = 0
 
 @onready var _shape: CollisionShape2D = $CollisionShape2D
 
@@ -38,10 +41,17 @@ func set_facing(facing: int) -> void:
 	position.x = absf(_base_x) * facing
 
 
+func apply_hitstop(frames: int) -> void:
+	_hitstop_left = maxi(_hitstop_left, frames)
+
+
 ## Overlaps reflect the previous physics step, so the shape must stay enabled for
 ## `frames` steps and the scan runs one callback after the last of them: scan first,
 ## then count down, and deactivate on the callback after the counter has reached 0.
 func _physics_process(_delta: float) -> void:
+	if _hitstop_left > 0:
+		_hitstop_left -= 1
+		return
 	if not active:
 		return
 	for body in get_overlapping_bodies():
@@ -66,4 +76,6 @@ func _physics_process(_delta: float) -> void:
 
 func _land(victim: Player, dir: Vector2) -> void:
 	victim.take_damage(_base_knockback, dir, _damage)
+	attacker.apply_hitstop(attacker.hitstop_frames)
+	victim.apply_hitstop(attacker.hitstop_frames)
 	attacker.hit_landed.emit(attacker.player_index, victim.player_index)

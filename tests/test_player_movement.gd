@@ -211,3 +211,18 @@ func test_players_read_only_their_own_actions(ctx: TestContext) -> void:
 	await ctx.step(10)
 	ctx.check(player2.velocity.x == 0.0, "p1_right leaves player 2 still")
 	ctx.check(player1.velocity.x > 200.0, "p1_right moves player 1")
+
+
+func test_landed_fires_once_on_touchdown(ctx: TestContext) -> void:
+	ctx.make_floor(GROUND_CENTER)
+	var player := ctx.spawn_player(1, Vector2(600, 400))
+	var landings: Array = []
+	player.connect("landed", func(index: int) -> void: landings.append(index))
+	var frames := 0
+	while not player.is_on_floor() and frames < MAX_DROP_FRAMES:
+		await ctx.step(1)
+		frames += 1
+	ctx.check(player.is_on_floor(), "dropped player reaches the floor")
+	ctx.check(landings == [1], "landed(1) fires on the frame is_on_floor() turns true")
+	await ctx.step(30)
+	ctx.check(landings == [1], "landed does not fire again while standing")

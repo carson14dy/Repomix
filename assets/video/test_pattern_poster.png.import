@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://chaevgy5tuj6x"
-path="res://.godot/imported/fighter_p2.png-e031227600b241224fedf228f3755de9.ctex"
+uid="uid://dxdkug725iggs"
+path="res://.godot/imported/test_pattern_poster.png-18554a12f0b60405abb6751130f9a3ad.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/sprites/fighter_p2.png"
-dest_files=["res://.godot/imported/fighter_p2.png-e031227600b241224fedf228f3755de9.ctex"]
+source_file="res://assets/video/test_pattern_poster.png"
+dest_files=["res://.godot/imported/test_pattern_poster.png-18554a12f0b60405abb6751130f9a3ad.ctex"]
 
 [params]
 

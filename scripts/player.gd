@@ -5,6 +5,8 @@ extends CharacterBody2D
 
 signal percentage_changed(player_index: int, percentage: float)
 signal hit_landed(attacker_index: int, victim_index: int)
+signal attack_started(player_index: int, facing: int)
+signal landed(player_index: int)
 
 enum State { NORMAL, KNOCKBACK }
 
@@ -40,6 +42,10 @@ enum State { NORMAL, KNOCKBACK }
 ## Physics frames a hit fighter has no control over movement, jumping or attacking.
 @export var knockback_stun_frames: int = 20
 
+@export_group("Combat feel", "")
+## Physics frames both fighters freeze for when a hit lands.
+@export var hitstop_frames: int = 5
+
 @export_group("Stage", "")
 @export var respawn_below_y: float = 1200.0
 
@@ -49,6 +55,8 @@ var percentage: float = 0.0
 var state: State = State.NORMAL
 ## 1 = right, -1 = left.
 var facing: int = 1
+## Frames of hit-freeze left; read-only from outside, set via apply_hitstop().
+var hitstop_left: int = 0
 
 var _spawn_position: Vector2
 var _jump_buffer: int = 0
@@ -68,11 +76,18 @@ func _ready() -> void:
 	facing = start_facing
 	_hitbox.attacker = self
 	if player_index == 2:
-		_sprite.texture = load("res://assets/sprites/fighter_p2.png")
+		_sprite.texture = load("res://assets/sprites/ignis.png")
 	_apply_facing()
 
 
 func _physics_process(delta: float) -> void:
+	if hitstop_left > 0:
+		hitstop_left -= 1
+		# Keep the press-edge detectors current so a button held through the freeze is not
+		# read as a fresh press once it ends. Velocity, stun and attack frames all pause.
+		_jump_held = Input.is_action_pressed(_action("jump"))
+		_attack_held = Input.is_action_pressed(_action("attack"))
+		return
 	var axis := Input.get_axis(_action("left"), _action("right"))
 	var down_held := Input.is_action_pressed(_action("down"))
 	var jump_pressed := _just_pressed("jump", _jump_held)
@@ -94,6 +109,8 @@ func _physics_process(delta: float) -> void:
 
 	move_and_slide()
 
+	if is_on_floor() and not on_floor:
+		landed.emit(player_index)
 	if state == State.NORMAL and axis != 0.0:
 		facing = signi(int(signf(axis)))
 		_apply_facing()
@@ -110,6 +127,12 @@ func take_damage(base_knockback: float, direction: Vector2, damage_amount: float
 	velocity = dir * actual_knockback
 	_enter_knockback()
 	percentage_changed.emit(player_index, percentage)
+
+
+## Freeze both this fighter and its hitbox for `frames` physics frames (longest wins).
+func apply_hitstop(frames: int) -> void:
+	hitstop_left = maxi(hitstop_left, frames)
+	_hitbox.apply_hitstop(frames)
 
 
 ## Also cancels a swing started on the way down, so nothing lands at the spawn point.
@@ -160,6 +183,7 @@ func _apply_jump(jump_pressed: bool, on_floor: bool) -> void:
 func _apply_attack(attack_pressed: bool) -> void:
 	if attack_pressed and _attack_frames_left == 0:
 		_attack_frames_left = attack_startup_frames + attack_active_frames + attack_recovery_frames
+		attack_started.emit(player_index, facing)
 	if _attack_frames_left == 0:
 		return
 	_attack_frames_left -= 1
@@ -190,8 +214,8 @@ func _apply_knockback(on_floor: bool, delta: float) -> void:
 		_sprite.modulate = Color.WHITE
 
 
+## The sprite flip is applied by fighter_visual.gd from `facing`.
 func _apply_facing() -> void:
-	_sprite.flip_h = facing < 0
 	_hitbox.set_facing(facing)
 
 

@@ -1,19 +1,22 @@
-# Skyfall Brawl
+# BrawlCrypt
 
-A local-multiplayer 2D platform fighter built in **Godot 4.4+** (GDScript, GL Compatibility
-renderer). Two fighters on floating islands, one keyboard (or one controller each), damage
-percentages, knockback that grows with damage. The genre is inspired by games like Brawlhalla;
-all names, art and code here are original.
+A local-multiplayer 2D gothic platform fighter built in **Godot 4.4+** (GDScript, GL
+Compatibility renderer). Two fighters brawl on the spine of a dead dragon in the
+**Wyrm's Ossuary**: damage percentages, knockback that grows with damage, hitstop, a camera
+that frames both players, and a medallion HUD. The genre is inspired by games like
+Brawlhalla; all names, art and code here are original.
 
 Local multiplayer only: there is no online play and none is planned.
+
+![Wyrm's Ossuary at the start of a match](docs/screenshot-main.png)
+![Ignis taking a 24% hit](docs/screenshot-hit.png)
 
 ## Open and run
 
 1. Install [Godot 4.4 or newer](https://godotengine.org/download) (the standard build; no
    .NET needed).
 2. In the Project Manager choose **Import**, select this folder's `project.godot`, then **Edit**.
-3. Press **F5** (Run Project). `scenes/Main.tscn` is the main scene: a floor, two one-way
-   platforms, both players and a damage HUD.
+3. Press **F5** (Run Project). `scenes/Main.tscn` is the main scene.
 
 Or from a terminal, with `GODOT` pointing at your Godot binary:
 
@@ -38,33 +41,85 @@ Bindings live in `project.godot` under `[input]` as actions `p1_left`, `p1_right
 (`"p%d_%s" % [player_index, name]`), so rebinding in **Project > Project Settings > Input Map**
 needs no code changes. Joypad bindings are per device: device 0 drives P1, device 1 drives P2.
 
+## Roster and stage
+
+| Slot     | Fighter   | Colour             | Sprite                      |
+| -------- | --------- | ------------------ | --------------------------- |
+| Player 1 | **Kage**  | cyan `#38bdf8`     | `assets/sprites/kage.png`, 64 px tall  |
+| Player 2 | **Ignis** | crimson `#ef4444`  | `assets/sprites/ignis.png`, 72 px tall |
+
+Stage: **Wyrm's Ossuary**. The main platform is a dragon's spine with a ribcage hanging
+under it, the two one-way platforms are floating bone shards, and a painted dragon skull,
+ruins and mist sit behind it all. The palette (`scripts/brawl_theme.gd`, `BrawlTheme`) is
+bone white over teal-grey shadows; damage read-outs go white, yellow (35%), orange (75%), red
+(120%).
+
 ## Folder layout
 
 ```
-project.godot          settings, input map, physics layers, display
-scenes/Main.tscn       the arena: floor, two platforms, Player1/Player2, camera, HUD
-scripts/main.gd        HUD wiring (percentage_changed -> labels)
-scripts/player.gd      fighter movement, fast-fall, air friction, jump buffer, attack,
-                       percentage / take_damage(), knockback state, respawn
-scripts/hitbox.gd      Area2D attack hitbox (one hit per activation, hits resolved at tick end)
-prefabs/Player.tscn    CharacterBody2D + Sprite2D + CollisionShape2D + Hitbox (Area2D)
-prefabs/Platform.tscn  one-way StaticBody2D platform, 240x20
-assets/sprites/        fighter_p1.png (teal), fighter_p2.png (orange) + .import sidecars
-tools/make_sprites.gd  regenerates the placeholder sprites
-tools/screenshot.gd    captures docs/screenshot-*.png from Main.tscn under Xvfb
-tests/                 headless test runner (run_tests.gd), TestContext, test_*.gd suites
-docs/                  review screenshots (docs/screenshot-*.png); .gdignore keeps Godot
-                       from importing them as textures
+project.godot            settings, input map, physics layers, display
+scenes/Main.tscn         the arena: backdrop layer, StageArt, Mist, floor + two shards,
+                         Player1/Player2, Vfx, fight camera, vignette, medallion HUD
+scripts/main.gd          wiring: camera targets, backdrop parallax, fighter signals -> Vfx/shake
+scripts/player.gd        fighter movement, fast-fall, air friction, jump buffer, attack,
+                         percentage / take_damage(), knockback state, hitstop, respawn
+scripts/hitbox.gd        Area2D attack hitbox (one hit per activation, hits resolved at tick end)
+scripts/fighter_visual.gd sprite feel: idle bob, run lean, air stretch, landing squash, shadow
+scripts/fight_camera.gd  two-target camera: midpoint framing, distance zoom, shake
+scripts/stage_art.gd     procedural bone spine, ribs and shards (static _draw)
+scripts/mist.gd          drifting translucent mist blobs
+scripts/vfx.gd           hit sparks, slash arcs, landing dust (frame-counted, world space)
+scripts/hud.gd           medallion HUD: percentage labels and ring colours
+scripts/medallion_ring.gd coloured ring around each portrait
+scripts/brawl_theme.gd   palette constants, player_color(), percent_color()
+prefabs/Player.tscn      CharacterBody2D + Sprite2D + CollisionShape2D + Hitbox (Area2D)
+prefabs/Platform.tscn    one-way StaticBody2D platform, 240x20 (no visual; StageArt draws it)
+assets/art-src/          generated sources: ossuary_far_1280x720.png, kage_magenta_1024.png,
+                         ignis_magenta_1024.png
+assets/backdrops/        ossuary_far.png (the painted backdrop) + .import sidecar
+assets/sprites/          kage.png, ignis.png, kage_portrait.png, ignis_portrait.png + sidecars
+tools/process_art.gd     art pipeline: art-src -> backdrops + sprites + portraits
+tools/screenshot.gd      captures docs/screenshot-*.png from Main.tscn under Xvfb
+tests/                   headless test runner (run_tests.gd), TestContext, test_*.gd suites
+docs/                    review screenshots (docs/screenshot-*.png); .gdignore keeps Godot
+                         from importing them as textures
 ```
 
 Physics layers: 1 `world` (floor, platforms), 2 `players`, 3 `hitboxes`. Player bodies are on
 layer 2 and collide only with layer 1, so fighters pass through each other. Hitboxes are on
 layer 3 and scan layer 2.
 
+## Art pipeline
+
+The three images in `assets/art-src/` were generated with Google's Gemini image model from the
+author's AI Studio account: the backdrop as a finished 1280x720 painting, each fighter as a
+full-body sprite facing right on a flat magenta background. `tools/process_art.gd` turns them
+into game assets:
+
+- `assets/backdrops/ossuary_far.png`: a copy of the backdrop.
+- `assets/sprites/kage.png`, `ignis.png`: the magenta is chroma-keyed (alpha ramps from 0 to 1
+  as a pixel's RGB distance from the sampled background colour goes from 70 to 130; any other
+  magenta-hued pixel, such as the ground shadow under Ignis, is cut too), edge pixels are
+  despilled from their opaque neighbours, the sprite is cropped to its used rect plus a 2 px
+  margin and Lanczos-resized to 64 px (Kage) or 72 px (Ignis) tall. Both face right.
+- `assets/sprites/kage_portrait.png`, `ignis_portrait.png`: 96x96 medallions cut from the head
+  band of the keyed sprite, clipped to a circle of radius 46 and filled with slate.
+
+To regenerate after replacing a source image:
+
+```bash
+$GODOT --headless --path . --script tools/process_art.gd   # writes the PNGs, prints each size
+$GODOT --headless --path . --import                         # refreshes the .import sidecars
+```
+
+The sidecars are committed, so a fresh clone needs no editor pass before running the tests.
+
 ## Tunables
 
-Every physics constant is an `@export` on `scripts/player.gd`, editable per instance in the
-Inspector. Units: px, px/s, px/s², physics frames at 60 Hz.
+Every physics and feel constant is an `@export`, editable per instance in the Inspector. Units:
+px, px/s, px/s², physics frames at 60 Hz.
+
+`scripts/player.gd`:
 
 | Export                        | Default | Unit     | Meaning |
 | ----------------------------- | ------- | -------- | ------- |
@@ -85,7 +140,20 @@ Inspector. Units: px, px/s, px/s², physics frames at 60 Hz.
 | `attack_damage`               | 8.0     | %        | percentage added per hit |
 | `attack_base_knockback`       | 260.0   | px/s     | base knockback of the attack; actual = base × (victim percentage / 10) |
 | `knockback_stun_frames`       | 20      | frames   | frames a hit fighter is in the knockback state (no control) |
+| `hitstop_frames`              | 5       | frames   | frames both fighters freeze when a hitbox connects |
 | `respawn_below_y`             | 1200.0  | px       | falling past this y respawns the fighter at 0% |
+
+`scripts/fight_camera.gd` (on `Main/Camera2D`):
+
+| Export        | Default | Meaning |
+| ------------- | ------- | ------- |
+| `min_zoom`    | 0.72    | widest view (Camera2D zoom; smaller = further out) |
+| `max_zoom`    | 1.15    | tightest view when the fighters are close |
+| `lerp_factor` | 0.08    | per-frame fraction the position and zoom move toward their targets |
+| `y_offset`    | -40.0   | frames the midpoint this many px above the fighters |
+
+Target zoom is `clamp(700 / (distance + 300), min_zoom, max_zoom)`; the camera limits
+`(-200, -240)..(1480, 960)` keep the view on the stage.
 
 ## Tests and static checks
 
@@ -96,7 +164,7 @@ with `GODOT` set to your binary:
 GODOT=/path/to/godot
 
 # (Re)import assets. Required after adding or changing PNG files. Prints nothing when clean.
-$GODOT --headless --path . --import 2>&1 | grep -iE "error|SCRIPT"
+$GODOT --headless --path . --import 2>&1 | grep -iE "error"
 
 # Parse + static-check one script (exit 0, no "SCRIPT ERROR" lines).
 $GODOT --headless --path . --check-only --script scripts/player.gd
@@ -107,16 +175,22 @@ $GODOT --headless --path . --fixed-fps 60 --script tests/run_tests.gd 2>&1 | gre
 # Lint + formatting (pip install gdtoolkit). "gdformat <files>" rewrites in place.
 gdlint scripts tests tools && gdformat --check scripts tests tools
 
-# Run Main.tscn for 2 s with software rendering (Linux, needs xvfb). Must print no SCRIPT ERROR.
+# Run Main.tscn for 2 s with software rendering (Linux, needs xvfb). Must print nothing.
 LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" $GODOT --path . \
-  --rendering-driver opengl3 --audio-driver Dummy --quit-after 120 2>&1 | grep -iE "error|SCRIPT"
+  --rendering-driver opengl3 --audio-driver Dummy --quit-after 120 2>&1 | grep -iE "script error|^error"
+
+# Refresh docs/screenshot-main.png and docs/screenshot-hit.png.
+LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" $GODOT --path . \
+  --rendering-driver opengl3 --audio-driver Dummy --script tools/screenshot.gd
 ```
 
 Tests are plain GDScript: `tests/run_tests.gd` discovers `tests/test_*.gd`, instantiates each
 suite and awaits every `test_*(ctx: TestContext)` method. `TestContext` spawns players and
 floors, presses InputMap actions, steps physics frames and records `check`/`check_near`
 assertions. Expected values are hand-derived from the tunables above (dt = 1/60), so a change to
-a default fails the test that encodes it.
+a default fails the test that encodes it. `tests/test_art_assets.gd` checks the pipeline
+outputs (sizes, keyed corners, circular portraits); `tests/test_scenes.gd` checks the arena
+layers, HUD tree and camera; `tests/test_vfx_hud.gd` checks effect lifetimes and the HUD.
 
 ## What is implemented / next steps
 
@@ -124,35 +198,24 @@ Implemented:
 
 - Two players on one keyboard or on two joypads, through the `p1_*` / `p2_*` InputMap actions.
 - Platform-fighter movement: run with separate ground and air acceleration, ground friction,
-  **air friction** (slight horizontal resistance when no direction is held in the air),
-  gravity with a terminal velocity, **fast-falling** (holding down in the air once you are no
-  longer rising multiplies gravity and raises the fall cap; it never cuts a jump short), and
-  **jump buffering** (a jump pressed up to 6 frames
-  before landing fires on the landing frame).
-- One attack per player with startup / active / recovery frame counters and an Area2D hitbox
-  that hits each opponent once per swing.
-- Combat: each `Player` has a `percentage` (read-only from outside) and
-  `take_damage(base_knockback, direction[, damage_amount = 10.0])`. A hit adds `damage_amount`
-  to the percentage, then launches the fighter along the normalized `direction` at
-  `actual_knockback = base_knockback * (percentage / 10.0)` (percentage after the hit; a zero
-  direction launches straight up). The hitbox calls it with its attack's damage and a direction
-  away from the attacker with upward lift, `normalize(±1, -0.75)`. Hits detected during a
-  physics tick are applied at the end of that tick, after every hitbox has scanned, so a
-  same-frame trade hits both fighters (and cancels both swings) regardless of scene-tree order.
-- Knockback state: `take_damage` puts the fighter in `State.KNOCKBACK` for
-  `knockback_stun_frames` physics frames. While stunned all input is ignored (no run, jump,
-  attack or fast-fall), an attack in progress is cancelled, gravity still applies, the launch
-  is not damped in the air (ground friction only while grounded), the sprite is tinted red and
-  the fall-off respawn still runs. The state returns to `NORMAL` on its own; `respawn()` also
-  resets it and the percentage to 0.
-- A respawn when a fighter falls off the bottom, and a HUD showing both percentages
-  (`percentage_changed(player_index, percentage)` -> labels in `scripts/main.gd`).
-- One-way platforms and a floor on a dark arena, two placeholder fighter sprites.
+  air friction, gravity with a terminal velocity, fast-falling (never cuts a jump short) and
+  jump buffering.
+- One attack per player with startup / active / recovery frames and an Area2D hitbox that
+  hits each opponent once per swing; same-frame trades hit both fighters.
+- Combat: `percentage`, `take_damage(base_knockback, direction[, damage_amount])`, knockback
+  `base × (percentage / 10)` away from the attacker with upward lift, a knockback stun state,
+  and **hitstop**: both fighters freeze for `hitstop_frames` when a hitbox connects.
+- A respawn when a fighter falls off the bottom.
+- Presentation: the Wyrm's Ossuary (painted skull backdrop with parallax, procedural bone
+  spine and ribs, floating shards, drifting mist, vignette), Kage and Ignis sprites with idle
+  bob / run lean / air stretch / landing squash, a two-target fight camera with distance zoom
+  and hit shake, slash arcs, hit sparks and landing dust, and a medallion HUD with portraits,
+  names and colour-coded percentages.
 
 Not yet:
 
-- Double jump, dodge / dash, wall slide, ledge grab.
+- Stocks and blast-zone KOs on the sides and top, round flow, win screen.
+- Dodge / dash, double jump, wall slide, ledge grab.
 - Weapons and more than one attack per fighter.
-- Stocks, KO blast zones on the sides and top, round flow, win screen.
-- Hitstop, screen shake, hit sparks and sound.
-- Menus and a controls screen.
+- More fighters (Zephyr is next) and a Veo-animated backdrop for the ossuary.
+- Sound, menus and a controls screen.

@@ -136,12 +136,16 @@ func test_take_damage_cancels_attack(ctx: TestContext) -> void:
 	attacker.take_damage(100.0, Vector2(-1, 0), 10.0)
 	ctx.check(hitbox.get("active") == false, "hit cancels the attack: hitbox inactive")
 	ctx.check(hitbox_shape.disabled, "hit cancels the attack: hitbox shape disabled")
+	# The swing landed on the victim at A+3, so the attacker sits in hitstop_frames (5) of
+	# freeze before its own 20 stun frames count.
 	var stayed_disabled := true
-	for _frame in range(20):
+	for _frame in range(25):
 		await ctx.step(1)
 		stayed_disabled = stayed_disabled and hitbox_shape.disabled
 	ctx.check(stayed_disabled, "hitbox stays off for the whole stun with no input")
-	ctx.check(attacker.get("state") == Player.State.NORMAL, "stun is over after 20 frames")
+	ctx.check(
+		attacker.get("state") == Player.State.NORMAL, "stun is over after 5 hitstop + 20 frames"
+	)
 	# A fresh attack: startup 3 -> the shape is enabled at the start of the 4th frame. A stale
 	# counter (15 frames of the cancelled swing left) would eat this press.
 	ctx.press("p1_attack")
@@ -171,7 +175,8 @@ func test_attack_hits_once_with_knockback(ctx: TestContext) -> void:
 	ctx.press("p1_attack")
 	await ctx.step(1)
 	ctx.release("p1_attack")
-	await ctx.step(8)
+	# 8 frames reach the hit (lands at A+3) plus hitstop_frames (5) before the victim moves.
+	await ctx.step(13)
 	ctx.check_near(
 		victim.get("percentage"), 8.0, 0.01, "attack_damage 8 lands within startup+active frames"
 	)
@@ -181,7 +186,7 @@ func test_attack_hits_once_with_knockback(ctx: TestContext) -> void:
 	ctx.check_near(hit_velocity.x, 166.4, 0.01, "launch x = 0.8 * 260 * 0.8 away from the attacker")
 	ctx.check_near(hit_velocity.y, -124.8, 0.01, "launch y = -0.6 * 260 * 0.8 (upward)")
 	ctx.check_near(
-		victim.velocity.x, 166.4, 0.5, "x is still 166.4 after 9 frames: stun has no air friction"
+		victim.velocity.x, 166.4, 0.5, "x is still 166.4 after 14 frames: stun has no air friction"
 	)
 	ctx.check(
 		victim.global_position.y < STAND_Y - 1.0, "victim has been lifted off the floor by the hit"
@@ -189,7 +194,7 @@ func test_attack_hits_once_with_knockback(ctx: TestContext) -> void:
 	ctx.check(landed == [[1, 2]], "hit_landed emitted once with (attacker 1, victim 2)")
 	ctx.check_near(attacker.get("percentage"), 0.0, 0.01, "attacker never hits itself")
 	await ctx.step(11)
-	ctx.check(hitbox_shape.disabled, "hitbox shape is disabled again 20 frames after the attack")
+	ctx.check(hitbox_shape.disabled, "hitbox shape is disabled again 25 frames after the attack")
 	await ctx.step(30)
 	ctx.check_near(victim.get("percentage"), 8.0, 0.01, "one activation deals damage only once")
 
@@ -235,7 +240,8 @@ func test_attack_cannot_restart_during_recovery(ctx: TestContext) -> void:
 	ctx.press("p1_attack")
 	await ctx.step(1)
 	ctx.release("p1_attack")
-	await ctx.step(9)
+	# The swing lands at A+3 and freezes the attacker for hitstop_frames (5): 9 + 5.
+	await ctx.step(14)
 	ctx.check(hitbox_shape.disabled, "hitbox is off during recovery")
 	ctx.press("p1_attack")
 	await ctx.step(1)
@@ -249,14 +255,28 @@ func test_player_two_uses_second_sprite(ctx: TestContext) -> void:
 	await ctx.step(1)
 	var sprite: Sprite2D = player.get_node("Sprite2D")
 	ctx.check(
-		sprite.texture.resource_path.ends_with("fighter_p2.png"),
-		"player_index 2 swaps to the orange fighter sprite"
+		sprite.texture.resource_path.ends_with("ignis.png"),
+		"player_index 2 swaps to the Ignis sprite"
 	)
+	# Airborne, so no idle bob: the rest offset puts a 72 px sprite's feet on the collider
+	# bottom, 28 - 72 / 2.
+	ctx.check_near(sprite.offset.y, -8.0, 0.01, "Ignis sprite offset.y is -8")
+
+
+func test_player_one_uses_kage_sprite(ctx: TestContext) -> void:
+	var player := ctx.spawn_player(1, Vector2(600, 100))
+	await ctx.step(1)
+	var sprite: Sprite2D = player.get_node("Sprite2D")
+	ctx.check(
+		sprite.texture.resource_path.ends_with("kage.png"), "player_index 1 keeps the Kage sprite"
+	)
+	ctx.check_near(sprite.offset.y, -4.0, 0.01, "Kage sprite offset.y is -4 (28 - 64 / 2)")
 
 
 # j. A same-frame trade hits both fighters, whatever their order in the scene tree, and both
 #    victims' stuns run on the same clock: the hit lands in frame A+3 (shape on at A+2, overlap
-#    read one step later), the 20 stun frames are A+4..A+23, NORMAL is visible from A+24.
+#    read one step later), hitstop_frames (5) freeze A+4..A+8, the 20 stun frames are
+#    A+9..A+28, NORMAL is visible from A+29.
 func test_same_frame_trade_hits_both(ctx: TestContext) -> void:
 	ctx.make_floor(FLOOR_CENTER)
 	var p1 := ctx.spawn_player(1, Vector2(500, STAND_Y))
@@ -275,19 +295,20 @@ func test_same_frame_trade_hits_both(ctx: TestContext) -> void:
 	ctx.check(p2.get("state") == Player.State.KNOCKBACK, "P2 is in KNOCKBACK after the trade")
 	ctx.check_near(p1.velocity.x, -166.4, 0.5, "P1 is launched away from P2 (0.8 * 260 * 0.8)")
 	ctx.check_near(p2.velocity.x, 166.4, 0.5, "P2 is launched away from P1 (0.8 * 260 * 0.8)")
-	await ctx.step(14)
+	await ctx.step(19)
 	ctx.check(
 		p1.get("state") == Player.State.KNOCKBACK and p2.get("state") == Player.State.KNOCKBACK,
-		"both still stunned at the start of frame A+23 (stun counts A+4..A+23 for both)"
+		"both still stunned at the start of frame A+28 (stun counts A+9..A+28 for both)"
 	)
 	await ctx.step(1)
 	ctx.check(
 		p1.get("state") == Player.State.NORMAL and p2.get("state") == Player.State.NORMAL,
-		"both regain control at the start of frame A+24"
+		"both regain control at the start of frame A+29"
 	)
 
 
-# k. The hitbox shape is on for exactly attack_active_frames (6) physics steps.
+# k. The hitbox shape is on for exactly attack_active_frames (6) physics steps, plus the
+#    hitstop_frames (5) it is frozen for after landing on the victim at A+3.
 func test_hitbox_is_on_for_active_frames(ctx: TestContext) -> void:
 	var fighters := await _face_off(ctx)
 	var attacker := fighters[0]
@@ -295,16 +316,16 @@ func test_hitbox_is_on_for_active_frames(ctx: TestContext) -> void:
 	ctx.press("p1_attack")
 	await ctx.step(1)
 	ctx.release("p1_attack")
-	# Whole swing = 3 + 6 + 10 = 19 frames; sample a couple past its end.
+	# Whole swing = 3 + 6 + 10 = 19 frames + 5 hitstop; sample a couple past its end.
 	var enabled_frames := 0
-	for _frame in range(21):
+	for _frame in range(26):
 		if not hitbox_shape.disabled:
 			enabled_frames += 1
 		await ctx.step(1)
 	ctx.check(
-		enabled_frames == 6,
+		enabled_frames == 11,
 		(
-			"hitbox shape is enabled at attack_active_frames (6) frame starts (actual %d)"
+			"hitbox shape is enabled at active (6) + hitstop (5) frame starts (actual %d)"
 			% enabled_frames
 		)
 	)
@@ -340,3 +361,64 @@ func test_respawn_cancels_attack_in_progress(ctx: TestContext) -> void:
 		not hitbox_shape.disabled,
 		"a new attack right after the respawn turns the hitbox on in 3 frames"
 	)
+
+
+# m. A hitbox hit freezes both fighters for hitstop_frames (5): the victim stays put, the
+#    attacker's hitbox neither counts down nor turns off, and the launch resumes afterwards.
+func test_hitbox_hit_freezes_both_for_hitstop(ctx: TestContext) -> void:
+	var fighters := await _face_off(ctx)
+	var attacker := fighters[0]
+	var victim := fighters[1]
+	var hitbox_shape: CollisionShape2D = attacker.get_node("Hitbox/CollisionShape2D")
+	var hits: Array = []
+	attacker.connect("hit_landed", func(a: int, v: int) -> void: hits.append([a, v]))
+	ctx.press("p1_attack")
+	await ctx.step(1)
+	ctx.release("p1_attack")
+	var frames := 1
+	while hits.is_empty() and frames < 10:
+		await ctx.step(1)
+		frames += 1
+	ctx.check(frames == 4, "hit lands at the end of frame A+3 (actual A+%d)" % (frames - 1))
+	ctx.check(
+		attacker.get("hitstop_left") == 5 and victim.get("hitstop_left") == 5,
+		"both fighters get hitstop_frames (5) when the hit lands"
+	)
+	ctx.check(not hitbox_shape.disabled, "hitbox shape is still on when the hit lands")
+	var frozen_pos := victim.global_position
+	var stayed_still := true
+	var shape_stayed_on := true
+	for _frame in range(5):
+		await ctx.step(1)
+		stayed_still = stayed_still and victim.global_position == frozen_pos
+		shape_stayed_on = shape_stayed_on and not hitbox_shape.disabled
+	ctx.check(stayed_still, "victim does not move during the 5 hitstop frames")
+	ctx.check(shape_stayed_on, "attacker's hitbox does not count down during hitstop")
+	ctx.check(victim.get("hitstop_left") == 0, "hitstop is over after 5 frames")
+	await ctx.step(1)
+	ctx.check(
+		victim.global_position.y < frozen_pos.y - 1.0, "victim rises on the frame after hitstop"
+	)
+	ctx.check_near(victim.velocity.x, 166.4, 0.5, "launch velocity is preserved through hitstop")
+
+
+# n. attack_started(player_index, facing) fires on the frame the swing begins and only once,
+#    even with the button held through the whole swing.
+func test_attack_started_fires_once_per_attack(ctx: TestContext) -> void:
+	ctx.make_floor(FLOOR_CENTER)
+	var p1 := ctx.spawn_player(1, Vector2(400, STAND_Y))
+	var p2 := _spawn_facing_left(ctx, 2, Vector2(800, STAND_Y))
+	var started: Array = []
+	for player in [p1, p2]:
+		player.connect("attack_started", func(i: int, f: int) -> void: started.append([i, f]))
+	await ctx.step(3)
+	ctx.press("p1_attack")
+	await ctx.step(1)
+	ctx.check(started == [[1, 1]], "attack_started(1, 1) fires on the frame P1 starts swinging")
+	await ctx.step(18)
+	ctx.release("p1_attack")
+	ctx.check(started.size() == 1, "attack held through the 19-frame swing fires it once")
+	ctx.press("p2_attack")
+	await ctx.step(1)
+	ctx.release("p2_attack")
+	ctx.check(started == [[1, 1], [2, -1]], "a left-facing P2 reports attack_started(2, -1)")

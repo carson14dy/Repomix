@@ -102,7 +102,10 @@ func _sample_key(img: Image) -> Color:
 	var w := img.get_width()
 	var h := img.get_height()
 	for corner: Vector2i in [
-		Vector2i.ZERO, Vector2i(w - KEY_SAMPLE, 0), Vector2i(0, h - KEY_SAMPLE), Vector2i(w, h) - Vector2i.ONE * KEY_SAMPLE
+		Vector2i.ZERO,
+		Vector2i(w - KEY_SAMPLE, 0),
+		Vector2i(0, h - KEY_SAMPLE),
+		Vector2i(w, h) - Vector2i.ONE * KEY_SAMPLE
 	]:
 		for y in range(corner.y, corner.y + KEY_SAMPLE):
 			for x in range(corner.x, corner.x + KEY_SAMPLE):

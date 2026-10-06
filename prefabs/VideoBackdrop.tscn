@@ -1,0 +1,23 @@
+[gd_scene load_steps=2 format=3]
+
+[ext_resource type="Script" path="res://scripts/video_backdrop.gd" id="1_video_backdrop"]
+
+[node name="VideoBackdrop" type="CanvasLayer"]
+layer = -10
+follow_viewport_enabled = false
+script = ExtResource("1_video_backdrop")
+
+[node name="Poster" type="TextureRect" parent="."]
+offset_right = 1280.0
+offset_bottom = 720.0
+mouse_filter = 2
+expand_mode = 1
+
+[node name="Player" type="VideoStreamPlayer" parent="."]
+offset_right = 1280.0
+offset_bottom = 720.0
+mouse_filter = 2
+volume_db = -80.0
+autoplay = true
+expand = true
+loop = true

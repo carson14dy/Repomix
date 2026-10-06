@@ -38,6 +38,9 @@ func set_facing(facing: int) -> void:
 	position.x = absf(_base_x) * facing
 
 
+## Overlaps reflect the previous physics step, so the shape must stay enabled for
+## `frames` steps and the scan runs one callback after the last of them: scan first,
+## then count down, and deactivate on the callback after the counter has reached 0.
 func _physics_process(_delta: float) -> void:
 	if not active:
 		return
@@ -51,8 +54,16 @@ func _physics_process(_delta: float) -> void:
 			Vector2(1.0 if victim.global_position.x >= attacker.global_position.x else -1.0, -0.75)
 			. normalized()
 		)
-		victim.take_damage(_base_knockback, dir, _damage)
-		attacker.hit_landed.emit(attacker.player_index, victim.player_index)
-	_frames_left -= 1
+		# Deferred (flushed at the end of this physics tick) so every hitbox scans before any
+		# victim is stunned: a same-frame trade hits both fighters instead of whichever Player
+		# comes first in the scene tree, and both stuns start on the next frame.
+		_land.call_deferred(victim, dir)
 	if _frames_left <= 0:
 		deactivate()
+	else:
+		_frames_left -= 1
+
+
+func _land(victim: Player, dir: Vector2) -> void:
+	victim.take_damage(_base_knockback, dir, _damage)
+	attacker.hit_landed.emit(attacker.player_index, victim.player_index)

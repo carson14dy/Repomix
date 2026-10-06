@@ -18,6 +18,26 @@ func _face_off(ctx: TestContext) -> Array[CharacterBody2D]:
 	return [attacker, victim]
 
 
+## Like ctx.spawn_player, but facing left (start_facing is read in _ready, so set it first).
+func _spawn_facing_left(ctx: TestContext, player_index: int, pos: Vector2) -> CharacterBody2D:
+	var scene: PackedScene = load(TestContext.PLAYER_SCENE_PATH)
+	var player := scene.instantiate() as CharacterBody2D
+	player.set("player_index", player_index)
+	player.set("start_facing", -1)
+	player.position = pos
+	ctx.add(player)
+	return player
+
+
+## Step one frame at a time until `player` falls past `below_y`; false if it never does.
+func _fall_past(ctx: TestContext, player: CharacterBody2D, below_y: float) -> bool:
+	for _frame in range(MAX_FALL_FRAMES):
+		await ctx.step(1)
+		if player.global_position.y > below_y:
+			return true
+	return false
+
+
 func _check_velocity(
 	ctx: TestContext, player: CharacterBody2D, want: Vector2, tol: float, label: String
 ) -> void:
@@ -60,6 +80,8 @@ func test_take_damage_default_damage_is_ten(ctx: TestContext) -> void:
 
 
 # d. Knockback state: input ignored, no air friction, gravity only, lasts knockback_stun_frames.
+#    Jump and attack stay held through the stun and past its end: a button held through the
+#    stun must not fire as a press when control returns.
 func test_knockback_state_blocks_control(ctx: TestContext) -> void:
 	ctx.make_floor(FLOOR_CENTER)
 	var player := ctx.spawn_player(1, Vector2(600, STAND_Y))
@@ -72,10 +94,7 @@ func test_knockback_state_blocks_control(ctx: TestContext) -> void:
 	ctx.press("p1_left")
 	ctx.press("p1_jump")
 	ctx.press("p1_attack")
-	await ctx.step(2)
-	ctx.release("p1_jump")
-	ctx.release("p1_attack")
-	await ctx.step(8)
+	await ctx.step(10)
 	ctx.check_near(
 		player.velocity.x, 282.84, 0.5, "held left is ignored and no air friction during stun"
 	)
@@ -86,14 +105,25 @@ func test_knockback_state_blocks_control(ctx: TestContext) -> void:
 	ctx.check(player.get("state") == Player.State.KNOCKBACK, "still KNOCKBACK after 19 frames")
 	await ctx.step(1)
 	ctx.check(player.get("state") == Player.State.NORMAL, "NORMAL after knockback_stun_frames 20")
-	await ctx.step(10)
+	# The fighter lands 2 frames after control returns; a stale press would buffer a jump
+	# that fires on landing (-620 px/s) and start an attack whose hitbox turns on 2 frames in.
+	await ctx.step(4)
+	ctx.check(
+		player.velocity.y > -100.0,
+		"jump held through the stun does not fire on exit (actual %.2f)" % player.velocity.y
+	)
+	ctx.check(hitbox_shape.disabled, "attack held through the stun does not start an attack")
+	ctx.release("p1_jump")
+	ctx.release("p1_attack")
+	await ctx.step(6)
 	ctx.check(
 		player.velocity.x < 182.0,
 		"held left slows the fighter once control returns (actual %.2f)" % player.velocity.x
 	)
 
 
-# e. Being hit cancels an attack in progress on the same call.
+# e. Being hit cancels an attack in progress on the same call, counter included: the hitbox
+#    stays off through the stun and a fresh attack starts the moment control returns.
 func test_take_damage_cancels_attack(ctx: TestContext) -> void:
 	var fighters := await _face_off(ctx)
 	var attacker := fighters[0]
@@ -106,7 +136,21 @@ func test_take_damage_cancels_attack(ctx: TestContext) -> void:
 	attacker.take_damage(100.0, Vector2(-1, 0), 10.0)
 	ctx.check(hitbox.get("active") == false, "hit cancels the attack: hitbox inactive")
 	ctx.check(hitbox_shape.disabled, "hit cancels the attack: hitbox shape disabled")
-	await ctx.step(1)
+	var stayed_disabled := true
+	for _frame in range(20):
+		await ctx.step(1)
+		stayed_disabled = stayed_disabled and hitbox_shape.disabled
+	ctx.check(stayed_disabled, "hitbox stays off for the whole stun with no input")
+	ctx.check(attacker.get("state") == Player.State.NORMAL, "stun is over after 20 frames")
+	# A fresh attack: startup 3 -> the shape is enabled at the start of the 4th frame. A stale
+	# counter (15 frames of the cancelled swing left) would eat this press.
+	ctx.press("p1_attack")
+	await ctx.step(3)
+	ctx.release("p1_attack")
+	ctx.check(
+		not hitbox_shape.disabled,
+		"a new attack right after the stun turns the hitbox on in 3 frames"
+	)
 
 
 # f. Hitbox integration: attack_damage 8, knockback 260 * 0.8 along normalize(1, -0.75).
@@ -162,22 +206,25 @@ func test_percentage_changed_signal(ctx: TestContext) -> void:
 	await ctx.step(1)
 
 
-# h. Respawn resets position, percentage and state.
+# h. Respawn resets position, percentage and state, and tells the HUD about the 0%.
 func test_player_without_floor_respawns(ctx: TestContext) -> void:
 	var player := ctx.spawn_player(1, Vector2(600, 100))
+	var received: Array = []
+	player.connect(
+		"percentage_changed", func(index: int, pct: float) -> void: received.append([index, pct])
+	)
 	player.take_damage(0.0, Vector2(1, 0), 8.0)
-	var fell := false
-	for _frame in range(MAX_FALL_FRAMES):
-		await ctx.step(1)
-		if player.global_position.y > 1100.0:
-			fell = true
-			break
+	var fell := await _fall_past(ctx, player, 1100.0)
 	ctx.check(fell, "player falls past y = 1100 with no floor")
 	await ctx.step(12)
 	ctx.check(player.global_position.y < 200.0, "crossing respawn_below_y 1200 returns to spawn")
 	ctx.check_near(player.get("percentage"), 0.0, 0.01, "respawn resets percentage to 0")
 	ctx.check(player.get("state") == Player.State.NORMAL, "respawn resets state to NORMAL")
 	ctx.check(player.velocity.y < 200.0, "respawn resets velocity (was falling at 900 px/s)")
+	ctx.check(
+		received == [[1, 8.0], [1, 0.0]],
+		"respawn emits percentage_changed(1, 0.0) after the hit's (1, 8.0) (got %s)" % [received]
+	)
 
 
 # i. Kept from the movement slice.
@@ -204,4 +251,92 @@ func test_player_two_uses_second_sprite(ctx: TestContext) -> void:
 	ctx.check(
 		sprite.texture.resource_path.ends_with("fighter_p2.png"),
 		"player_index 2 swaps to the orange fighter sprite"
+	)
+
+
+# j. A same-frame trade hits both fighters, whatever their order in the scene tree, and both
+#    victims' stuns run on the same clock: the hit lands in frame A+3 (shape on at A+2, overlap
+#    read one step later), the 20 stun frames are A+4..A+23, NORMAL is visible from A+24.
+func test_same_frame_trade_hits_both(ctx: TestContext) -> void:
+	ctx.make_floor(FLOOR_CENTER)
+	var p1 := ctx.spawn_player(1, Vector2(500, STAND_Y))
+	var p2 := _spawn_facing_left(ctx, 2, Vector2(540, STAND_Y))
+	await ctx.step(3)
+	ctx.check(p1.is_on_floor() and p2.is_on_floor(), "both fighters start grounded")
+	ctx.press("p1_attack")
+	ctx.press("p2_attack")
+	await ctx.step(1)
+	ctx.release("p1_attack")
+	ctx.release("p2_attack")
+	await ctx.step(8)
+	ctx.check_near(p1.get("percentage"), 8.0, 0.01, "P1 takes P2's hit in a same-frame trade")
+	ctx.check_near(p2.get("percentage"), 8.0, 0.01, "P2 takes P1's hit in a same-frame trade")
+	ctx.check(p1.get("state") == Player.State.KNOCKBACK, "P1 is in KNOCKBACK after the trade")
+	ctx.check(p2.get("state") == Player.State.KNOCKBACK, "P2 is in KNOCKBACK after the trade")
+	ctx.check_near(p1.velocity.x, -166.4, 0.5, "P1 is launched away from P2 (0.8 * 260 * 0.8)")
+	ctx.check_near(p2.velocity.x, 166.4, 0.5, "P2 is launched away from P1 (0.8 * 260 * 0.8)")
+	await ctx.step(14)
+	ctx.check(
+		p1.get("state") == Player.State.KNOCKBACK and p2.get("state") == Player.State.KNOCKBACK,
+		"both still stunned at the start of frame A+23 (stun counts A+4..A+23 for both)"
+	)
+	await ctx.step(1)
+	ctx.check(
+		p1.get("state") == Player.State.NORMAL and p2.get("state") == Player.State.NORMAL,
+		"both regain control at the start of frame A+24"
+	)
+
+
+# k. The hitbox shape is on for exactly attack_active_frames (6) physics steps.
+func test_hitbox_is_on_for_active_frames(ctx: TestContext) -> void:
+	var fighters := await _face_off(ctx)
+	var attacker := fighters[0]
+	var hitbox_shape: CollisionShape2D = attacker.get_node("Hitbox/CollisionShape2D")
+	ctx.press("p1_attack")
+	await ctx.step(1)
+	ctx.release("p1_attack")
+	# Whole swing = 3 + 6 + 10 = 19 frames; sample a couple past its end.
+	var enabled_frames := 0
+	for _frame in range(21):
+		if not hitbox_shape.disabled:
+			enabled_frames += 1
+		await ctx.step(1)
+	ctx.check(
+		enabled_frames == 6,
+		(
+			"hitbox shape is enabled at attack_active_frames (6) frame starts (actual %d)"
+			% enabled_frames
+		)
+	)
+
+
+# l. Falling off mid-swing: the respawned fighter has no live hitbox and no stale recovery.
+func test_respawn_cancels_attack_in_progress(ctx: TestContext) -> void:
+	var player := ctx.spawn_player(1, Vector2(600, 100))
+	var hitbox_shape: CollisionShape2D = player.get_node("Hitbox/CollisionShape2D")
+	var fell := await _fall_past(ctx, player, 1150.0)
+	ctx.check(fell, "player falls past y = 1150 with no floor")
+	# Falling at max_fall_speed (15 px/frame) it crosses respawn_below_y 1200 within 4 frames,
+	# before or during the 3 startup frames of this swing.
+	ctx.press("p1_attack")
+	await ctx.step(1)
+	ctx.release("p1_attack")
+	var respawned := false
+	for _frame in range(6):
+		await ctx.step(1)
+		if player.global_position.y < 200.0:
+			respawned = true
+			break
+	ctx.check(respawned, "player respawns within 6 frames of the attack press")
+	var stayed_disabled := hitbox_shape.disabled
+	for _frame in range(8):
+		await ctx.step(1)
+		stayed_disabled = stayed_disabled and hitbox_shape.disabled
+	ctx.check(stayed_disabled, "the swing started below the stage never turns its hitbox on")
+	ctx.press("p1_attack")
+	await ctx.step(3)
+	ctx.release("p1_attack")
+	ctx.check(
+		not hitbox_shape.disabled,
+		"a new attack right after the respawn turns the hitbox on in 3 frames"
 	)

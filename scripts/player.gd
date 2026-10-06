@@ -112,12 +112,16 @@ func take_damage(base_knockback: float, direction: Vector2, damage_amount: float
 	percentage_changed.emit(player_index, percentage)
 
 
+## Also cancels a swing started on the way down, so nothing lands at the spawn point.
 func respawn() -> void:
 	global_position = _spawn_position
 	velocity = Vector2.ZERO
 	percentage = 0.0
 	state = State.NORMAL
 	_stun_frames_left = 0
+	_jump_buffer = 0
+	_attack_frames_left = 0
+	_hitbox.deactivate()
 	_sprite.modulate = Color.WHITE
 	percentage_changed.emit(player_index, percentage)
 

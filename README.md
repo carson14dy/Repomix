@@ -44,14 +44,17 @@ needs no code changes. Joypad bindings are per device: device 0 drives P1, devic
 project.godot          settings, input map, physics layers, display
 scenes/Main.tscn       the arena: floor, two platforms, Player1/Player2, camera, HUD
 scripts/main.gd        HUD wiring (percentage_changed -> labels)
-scripts/player.gd      fighter movement, fast-fall, air friction, jump buffer, attack
-scripts/hitbox.gd      Area2D attack hitbox (one hit per activation)
+scripts/player.gd      fighter movement, fast-fall, air friction, jump buffer, attack,
+                       percentage / take_damage(), knockback state, respawn
+scripts/hitbox.gd      Area2D attack hitbox (one hit per activation, hits resolved at tick end)
 prefabs/Player.tscn    CharacterBody2D + Sprite2D + CollisionShape2D + Hitbox (Area2D)
 prefabs/Platform.tscn  one-way StaticBody2D platform, 240x20
 assets/sprites/        fighter_p1.png (teal), fighter_p2.png (orange) + .import sidecars
 tools/make_sprites.gd  regenerates the placeholder sprites
+tools/screenshot.gd    captures docs/screenshot-*.png from Main.tscn under Xvfb
 tests/                 headless test runner (run_tests.gd), TestContext, test_*.gd suites
-docs/                  design reference material
+docs/                  review screenshots (docs/screenshot-*.png); .gdignore keeps Godot
+                       from importing them as textures
 ```
 
 Physics layers: 1 `world` (floor, platforms), 2 `players`, 3 `hitboxes`. Player bodies are on
@@ -133,7 +136,9 @@ Implemented:
   to the percentage, then launches the fighter along the normalized `direction` at
   `actual_knockback = base_knockback * (percentage / 10.0)` (percentage after the hit; a zero
   direction launches straight up). The hitbox calls it with its attack's damage and a direction
-  away from the attacker with upward lift, `normalize(±1, -0.75)`.
+  away from the attacker with upward lift, `normalize(±1, -0.75)`. Hits detected during a
+  physics tick are applied at the end of that tick, after every hitbox has scanned, so a
+  same-frame trade hits both fighters (and cancels both swings) regardless of scene-tree order.
 - Knockback state: `take_damage` puts the fighter in `State.KNOCKBACK` for
   `knockback_stun_frames` physics frames. While stunned all input is ignored (no run, jump,
   attack or fast-fall), an attack in progress is cancelled, gravity still applies, the launch

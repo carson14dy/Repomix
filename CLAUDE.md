@@ -13,7 +13,7 @@ scripts/               # GDScript attached to scenes (player.gd, hitbox.gd, ...)
 assets/sprites/        # textures (+ their .import sidecars, which are committed)
 tests/                 # headless test runner and test scripts (no external framework)
 tools/                 # one-off generator scripts (placeholder sprite generation)
-docs/                  # design reference material
+docs/                  # review screenshots (tools/screenshot.gd); .gdignore keeps them out of the import pipeline
 ```
 
 ## Commands
@@ -83,13 +83,15 @@ fixes in a row means the design is wrong; stop and say so.
 - `move_and_slide()` takes no arguments in Godot 4 and uses `velocity`. Gravity is applied by
   the script, not the engine. `is_on_floor()` is valid only after `move_and_slide()` ran in a
   previous frame, so read it before moving in the current frame.
-- Use `Input.is_action_just_pressed` for edge-triggered inputs (jump, attack) and
+- Detect press edges (jump, attack) by comparing `Input.is_action_pressed` against the
+  previous frame's held flag (see `Player._just_pressed`); `Input.is_action_just_pressed`
+  lags a physics frame under `--fixed-fps` and must not be used in gameplay scripts. Use
   `Input.get_axis(left, right)` for horizontal movement.
 - Frame counters are `int` and count physics frames; durations in the README are given in
   frames at 60 Hz. Speeds are px/s and accelerations px/s², scaled by `delta`.
 - `@onready var sprite: Sprite2D = $Sprite2D` style for child references; node names are
   part of the contract between scene and script.
-- Signals for cross-node communication (`damage_changed`, `hit_landed`); no `get_parent()`
+- Signals for cross-node communication (`percentage_changed`, `hit_landed`); no `get_parent()`
   chains into siblings.
 - Keep `gdlint` clean with its default config and `gdformat` formatting (tabs, 100 columns).
 

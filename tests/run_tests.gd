@@ -12,17 +12,22 @@ const WATCHDOG_SECONDS := 120.0
 var _total_passes: int = 0
 var _total_failures: int = 0
 
+var _elapsed_seconds: float = 0.0
+
 
 func _initialize() -> void:
-	_watchdog()
 	_run_all()
 
 
-func _watchdog() -> void:
-	await create_timer(WATCHDOG_SECONDS).timeout
-	push_error("Test run exceeded %.0f s; aborting" % WATCHDOG_SECONDS)
-	print("\n==== WATCHDOG TIMEOUT ====")
-	quit(1)
+## Frame-counted watchdog (a SceneTreeTimer would leak at exit when the run finishes first).
+func _process(delta: float) -> bool:
+	_elapsed_seconds += delta
+	if _elapsed_seconds > WATCHDOG_SECONDS:
+		push_error("Test run exceeded %.0f s; aborting" % WATCHDOG_SECONDS)
+		print("\n==== WATCHDOG TIMEOUT ====")
+		quit(1)
+		return true
+	return false
 
 
 func _run_all() -> void:
@@ -33,7 +38,7 @@ func _run_all() -> void:
 		return
 	for path in files:
 		var script: GDScript = load(path)
-		if script == null:
+		if script == null or not script.can_instantiate():
 			print("\n%s\n  FAIL  script failed to load (parse error above)" % path.get_file())
 			_total_failures += 1
 			continue

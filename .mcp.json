@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "veo-composio": {
+      "type": "http",
+      "url": "https://veo.mcp.acedata.cloud/mcp",
+      "headers": {
+        "X-API-Key": "${ACEDATA_API_KEY}"
+      }
+    }
+  }
+}

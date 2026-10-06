@@ -3,7 +3,8 @@ extends SceneTree
 ## arc and hit spark a real hitbox hit would trigger through main.gd) and captures
 ## docs/screenshot-hit.png (knockback tint, Vfx, "24%" medallion), then moves Player2 to the
 ## far right of the spine and lets the fight camera settle for docs/screenshot-zoom.png
-## (zoomed-out framing) for the lead's review.
+## (zoomed-out framing), then drops Player2 past the blast zone on its last stock for
+## docs/screenshot-win.png (the win screen).
 ##
 ## Run:  LIBGL_ALWAYS_SOFTWARE=1 xvfb-run -a -s "-screen 0 1280x720x24" $GODOT --path . \
 ##         --rendering-driver opengl3 --audio-driver Dummy --script tools/screenshot.gd
@@ -12,6 +13,7 @@ const MAIN_SCENE := "res://scenes/Main.tscn"
 const MAIN_PNG := "res://docs/screenshot-main.png"
 const HIT_PNG := "res://docs/screenshot-hit.png"
 const ZOOM_PNG := "res://docs/screenshot-zoom.png"
+const WIN_PNG := "res://docs/screenshot-win.png"
 ## Player2 spawn for the zoom shot: still on the spine (collider x 190..1090), far from Player1.
 const ZOOM_P2_POSITION := Vector2(1050, 540)
 
@@ -41,6 +43,12 @@ func _capture() -> void:
 	# frames (not process frames) keeps the count exact however slow the software renderer is.
 	await _physics_frames(90)
 	_save(ZOOM_PNG)
+	var match_node: Match = current_scene.get_node("Match")
+	match_node.stocks[2] = 1
+	player2.global_position = Vector2(640, 1150)
+	await _physics_frames(2)
+	await _frames(2)
+	_save(WIN_PNG)
 	quit(0)
 
 

@@ -24,15 +24,16 @@ func _grounded_player(ctx: TestContext, index: int = 1, x: float = 600.0) -> Cha
 	return player
 
 
-## Drop a fresh player from DROP_POS with no input; returns the number of frames stepped
-## until is_on_floor() became true. `press_at_frame` (0 = never) taps p1_jump for one frame.
-func _drop_until_landing(ctx: TestContext, press_at_frame: int) -> Dictionary:
+## Drop a fresh player from (600, 400) and return the number of frames stepped until
+## is_on_floor() became true. p1_jump is tapped for one frame at each frame in `press_frames`;
+## the tap at frame 1 spends the single air jump so later taps reach the jump buffer.
+func _drop_until_landing(ctx: TestContext, press_frames: Array[int]) -> Dictionary:
 	var player := ctx.spawn_player(1, Vector2(600, 400))
 	for frame in range(1, MAX_DROP_FRAMES + 1):
-		if frame == press_at_frame:
+		if press_frames.has(frame):
 			ctx.press("p1_jump")
 		await ctx.step(1)
-		if frame == press_at_frame:
+		if press_frames.has(frame):
 			ctx.release("p1_jump")
 		if player.is_on_floor():
 			return {"player": player, "frames": frame}
@@ -158,26 +159,85 @@ func test_grounded_jump_is_immediate(ctx: TestContext) -> void:
 
 func test_jump_buffer_accepts_early_press(ctx: TestContext) -> void:
 	ctx.make_floor(GROUND_CENTER)
-	var calibration := await _drop_until_landing(ctx, 0)
+	var calibration := await _drop_until_landing(ctx, [1])
 	var landing_frame: int = calibration["frames"]
-	ctx.check(landing_frame > 10, "calibration drop lands after more than 10 frames")
-	var buffered := await _drop_until_landing(ctx, landing_frame - 4)
+	ctx.check(landing_frame > 10, "calibration drop (air jump at frame 1) lands after 10+ frames")
+	var buffered := await _drop_until_landing(ctx, [1, landing_frame - 4])
 	var player: CharacterBody2D = buffered["player"]
 	var fastest_rise := 0.0
 	for _frame in range(2):
 		await ctx.step(1)
 		fastest_rise = minf(fastest_rise, player.velocity.y)
-	ctx.check(fastest_rise <= -600.0, "jump pressed 4 frames before landing fires within 2 frames")
+	ctx.check(
+		fastest_rise <= -600.0,
+		"with the air jump spent, a jump pressed 4 frames before landing fires within 2 frames"
+	)
 
 
 func test_jump_buffer_expires(ctx: TestContext) -> void:
 	ctx.make_floor(GROUND_CENTER)
-	var calibration := await _drop_until_landing(ctx, 0)
+	var calibration := await _drop_until_landing(ctx, [1])
 	var landing_frame: int = calibration["frames"]
-	var stale := await _drop_until_landing(ctx, landing_frame - 20)
+	var stale := await _drop_until_landing(ctx, [1, landing_frame - 20])
 	var player: CharacterBody2D = stale["player"]
 	await ctx.step(3)
 	ctx.check(player.velocity.y >= -1.0, "jump pressed 20 frames before landing is forgotten")
+
+
+func test_air_jump_fires_on_a_fresh_press(ctx: TestContext) -> void:
+	var player := _airborne_player(ctx)
+	var jumps: Array = []
+	player.connect("jumped", func(index: int, air: bool) -> void: jumps.append([index, air]))
+	await ctx.step(10)
+	ctx.check_near(player.velocity.y, 250.0, 10.0, "falling at 250 after 10 frames")
+	ctx.press("p1_jump")
+	await ctx.step(1)
+	ctx.release("p1_jump")
+	ctx.check_near(player.velocity.y, -560.0, 1.0, "a press in the air sets air_jump_velocity")
+	ctx.check(jumps == [[1, true]], "jumped(1, true) fires for the air jump (got %s)" % [jumps])
+
+
+func test_only_one_air_jump_until_landing(ctx: TestContext) -> void:
+	ctx.make_floor(GROUND_CENTER)
+	var player := _airborne_player(ctx)
+	player.global_position = Vector2(600, 300)
+	await ctx.step(5)
+	ctx.press("p1_jump")
+	await ctx.step(1)
+	ctx.release("p1_jump")
+	ctx.check_near(player.velocity.y, -560.0, 1.0, "first air press jumps")
+	await ctx.step(5)
+	var before := player.velocity.y
+	ctx.press("p1_jump")
+	await ctx.step(1)
+	ctx.release("p1_jump")
+	ctx.check_near(
+		player.velocity.y, before + 25.0, 1.0, "a second air press only buffers (gravity +25)"
+	)
+	var frames := 0
+	while not player.is_on_floor() and frames < MAX_DROP_FRAMES:
+		await ctx.step(1)
+		frames += 1
+	ctx.check(player.is_on_floor(), "the fighter lands")
+	ctx.press("p1_jump")
+	await ctx.step(1)
+	ctx.release("p1_jump")
+	ctx.check_near(player.velocity.y, -620.0, 1.0, "landing restores the ground jump")
+	await ctx.step(5)
+	ctx.press("p1_jump")
+	await ctx.step(1)
+	ctx.release("p1_jump")
+	ctx.check_near(player.velocity.y, -560.0, 1.0, "landing also restores the air jump")
+
+
+func test_holding_jump_does_not_air_jump(ctx: TestContext) -> void:
+	ctx.make_floor(GROUND_CENTER)
+	var player := await _grounded_player(ctx)
+	ctx.press("p1_jump")
+	await ctx.step(1)
+	ctx.check_near(player.velocity.y, -620.0, 1.0, "the ground jump fires on the press")
+	await ctx.step(10)
+	ctx.check_near(player.velocity.y, -370.0, 20.0, "holding jump through the rise never air-jumps")
 
 
 func test_facing_follows_input(ctx: TestContext) -> void:

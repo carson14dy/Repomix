@@ -56,7 +56,7 @@ func _physics_process(_delta: float) -> void:
 		return
 	for body in get_overlapping_bodies():
 		var victim := body as Player
-		if victim == null or victim == attacker or _already_hit.has(victim):
+		if victim == null or victim == attacker or not victim.active or _already_hit.has(victim):
 			continue
 		_already_hit.append(victim)
 		# Away from the attacker with a fixed upward lift: normalize(±1, -0.75) = (±0.8, -0.6).

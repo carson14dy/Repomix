@@ -1,13 +1,16 @@
 extends CanvasLayer
 ## Looping video backdrop (prefabs/VideoBackdrop.tscn): a CanvasLayer at layer -10 holding a
-## full-screen poster TextureRect behind a muted, looping VideoStreamPlayer "Player".
+## poster TextureRect behind a muted, looping VideoStreamPlayer "Player". Both rects are 12 %
+## larger than the 1280x720 view (a 77x43 px margin) so main.gd can scroll the layer for
+## parallax without showing an edge.
 ##
 ## The poster is always shown so the first frame is never black; the player is hidden when
 ## the stream is missing or fails to load (e.g. a clip that has not been generated yet).
-## Produce clips with tools/veo_backdrops.py + tools/convert_backdrop.sh; see docs/VEO.md.
+## Produce clips with tools/render_backdrop_clip.py (or tools/veo_backdrops.py) and
+## tools/convert_backdrop.sh; see docs/VEO.md.
 
-@export var stream_path: String = "res://assets/video/test_pattern.ogv"
-@export var poster_path: String = "res://assets/video/test_pattern_poster.png"
+@export var stream_path: String = "res://assets/video/ossuary_nave.ogv"
+@export var poster_path: String = "res://assets/video/ossuary_nave_poster.png"
 
 @onready var _player: VideoStreamPlayer = $Player
 @onready var _poster: TextureRect = $Poster

@@ -1,9 +1,8 @@
-[gd_scene load_steps=18 format=3]
+[gd_scene load_steps=19 format=3]
 
 [ext_resource type="Script" path="res://scripts/main.gd" id="1_main"]
 [ext_resource type="PackedScene" path="res://prefabs/Platform.tscn" id="2_platform"]
 [ext_resource type="PackedScene" path="res://prefabs/Player.tscn" id="3_player"]
-[ext_resource type="Texture2D" path="res://assets/backdrops/ossuary_far.png" id="4_backdrop"]
 [ext_resource type="Script" path="res://scripts/stage_art.gd" id="5_stage_art"]
 [ext_resource type="Script" path="res://scripts/mist.gd" id="6_mist"]
 [ext_resource type="Script" path="res://scripts/vfx.gd" id="7_vfx"]
@@ -12,6 +11,10 @@
 [ext_resource type="Script" path="res://scripts/medallion_ring.gd" id="10_ring"]
 [ext_resource type="Texture2D" path="res://assets/sprites/kage_portrait.png" id="11_kage_portrait"]
 [ext_resource type="Texture2D" path="res://assets/sprites/ignis_portrait.png" id="12_ignis_portrait"]
+[ext_resource type="PackedScene" path="res://prefabs/VideoBackdrop.tscn" id="13_video_backdrop"]
+[ext_resource type="PackedScene" path="res://prefabs/Sfx.tscn" id="14_sfx"]
+[ext_resource type="Script" path="res://scripts/match.gd" id="15_match"]
+[ext_resource type="Script" path="res://scripts/stock_pips.gd" id="16_stock_pips"]
 
 [sub_resource type="RectangleShape2D" id="RectangleShape2D_floor"]
 size = Vector2(900, 48)
@@ -30,15 +33,9 @@ fill_to = Vector2(0, 1)
 [node name="Main" type="Node2D"]
 script = ExtResource("1_main")
 
-[node name="BackdropLayer" type="CanvasLayer" parent="."]
-layer = -10
-follow_viewport_enabled = false
-
-[node name="Backdrop" type="Sprite2D" parent="BackdropLayer"]
-modulate = Color(0.82, 0.88, 0.92, 1)
-position = Vector2(640, 360)
-scale = Vector2(1.12, 1.12)
-texture = ExtResource("4_backdrop")
+[node name="VideoBackdrop" parent="." instance=ExtResource("13_video_backdrop")]
+stream_path = "res://assets/video/ossuary_nave.ogv"
+poster_path = "res://assets/video/ossuary_nave_poster.png"
 
 [node name="StageArt" type="Node2D" parent="."]
 script = ExtResource("5_stage_art")
@@ -81,6 +78,11 @@ limit_top = -240
 limit_right = 1480
 limit_bottom = 960
 script = ExtResource("8_camera")
+
+[node name="Match" type="Node" parent="."]
+script = ExtResource("15_match")
+
+[node name="Sfx" parent="." instance=ExtResource("14_sfx")]
 
 [node name="VignetteLayer" type="CanvasLayer" parent="."]
 layer = 5
@@ -160,6 +162,15 @@ theme_override_colors/font_color = Color(0.945098, 0.960784, 0.976471, 1)
 theme_override_font_sizes/font_size = 40
 text = "0%"
 
+[node name="Stocks" type="Control" parent="HUD/Root/P1Medallion"]
+layout_mode = 0
+offset_left = 122.0
+offset_top = 104.0
+offset_right = 302.0
+offset_bottom = 124.0
+mouse_filter = 2
+script = ExtResource("16_stock_pips")
+
 [node name="P2Medallion" type="Control" parent="HUD/Root"]
 layout_mode = 0
 offset_left = 952.0
@@ -205,6 +216,15 @@ theme_override_font_sizes/font_size = 40
 text = "0%"
 horizontal_alignment = 2
 
+[node name="Stocks" type="Control" parent="HUD/Root/P2Medallion"]
+layout_mode = 0
+offset_top = 104.0
+offset_right = 180.0
+offset_bottom = 124.0
+mouse_filter = 2
+script = ExtResource("16_stock_pips")
+align_right = true
+
 [node name="Controls" type="Label" parent="HUD/Root"]
 layout_mode = 0
 offset_left = 340.0
@@ -213,6 +233,38 @@ offset_right = 940.0
 offset_bottom = 702.0
 theme_override_colors/font_color = Color(0.576471, 0.662745, 0.701961, 0.8)
 theme_override_font_sizes/font_size = 16
-text = "P1  WASD + G      P2  Arrows + L"
+text = "P1  WASD + G      P2  Arrows + L      3 stocks, double jump, fall or fly out to lose one"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="WinLayer" type="CanvasLayer" parent="."]
+layer = 20
+visible = false
+
+[node name="Dim" type="ColorRect" parent="WinLayer"]
+offset_right = 1280.0
+offset_bottom = 720.0
+mouse_filter = 2
+color = Color(0.0784314, 0.12549, 0.164706, 0.6)
+
+[node name="Winner" type="Label" parent="WinLayer"]
+offset_left = 240.0
+offset_top = 240.0
+offset_right = 1040.0
+offset_bottom = 350.0
+theme_override_colors/font_color = Color(0.945098, 0.960784, 0.976471, 1)
+theme_override_font_sizes/font_size = 72
+text = "Kage wins"
+horizontal_alignment = 1
+vertical_alignment = 1
+
+[node name="Hint" type="Label" parent="WinLayer"]
+offset_left = 240.0
+offset_top = 370.0
+offset_right = 1040.0
+offset_bottom = 410.0
+theme_override_colors/font_color = Color(0.576471, 0.662745, 0.701961, 1)
+theme_override_font_sizes/font_size = 24
+text = "Attack to rematch  (P1 G / P2 L)"
 horizontal_alignment = 1
 vertical_alignment = 1

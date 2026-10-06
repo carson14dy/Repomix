@@ -2,15 +2,18 @@
 
 A local-multiplayer 2D gothic platform fighter built in **Godot 4.4+** (GDScript, GL
 Compatibility renderer). Two fighters brawl on the spine of a dead dragon in the
-**Wyrm's Ossuary**: damage percentages, knockback that grows with damage, hitstop, a camera
-that frames both players, and a medallion HUD. The genre is inspired by games like
-Brawlhalla; all names, art and code here are original.
+**Wyrm's Ossuary**: damage percentages, knockback that grows with damage, hitstop, double
+jumps, three stocks each and a blast zone on every side, a camera that frames both players,
+procedural sound, a looping video backdrop and a medallion HUD with stock pips. Lose your last
+stock and the other fighter wins; one attack press starts the rematch. The genre is inspired
+by games like Brawlhalla; all names, art and code here are original.
 
 Local multiplayer only: there is no online play and none is planned.
 
 ![Wyrm's Ossuary at the start of a match](docs/screenshot-main.png)
 ![Ignis taking a 24% hit](docs/screenshot-hit.png)
 ![The camera zoomed out with the fighters far apart](docs/screenshot-zoom.png)
+![The win screen after Ignis loses the last stock](docs/screenshot-win.png)
 
 ## Open and run
 
@@ -33,7 +36,7 @@ $GODOT --path . --editor   # open the editor
 | ------ | ------------------- | ------------------- | ------------------- | ------------------- |
 | Left   | A                   | Left stick / D-pad  | Left arrow          | Left stick / D-pad  |
 | Right  | D                   | Left stick / D-pad  | Right arrow         | Left stick / D-pad  |
-| Jump   | W                   | A (bottom face)     | Up arrow            | A (bottom face)     |
+| Jump (again in the air for the double jump) | W | A (bottom face) | Up arrow        | A (bottom face)     |
 | Down / fast-fall | S         | Left stick / D-pad down | Down arrow      | Left stick / D-pad down |
 | Attack | G                   | X (left face)       | L                   | X (left face)       |
 
@@ -50,36 +53,55 @@ needs no code changes. Joypad bindings are per device: device 0 drives P1, devic
 | Player 2 | **Ignis** | crimson `#ef4444`  | `assets/sprites/ignis.png`, 72 px tall |
 
 Stage: **Wyrm's Ossuary**. The main platform is a dragon's spine with a ribcage hanging
-under it, the two one-way platforms are floating bone shards, and a painted dragon skull,
-ruins and mist sit behind it all. The palette (`scripts/brawl_theme.gd`, `BrawlTheme`) is
-bone white over teal-grey shadows; damage read-outs go white, yellow (35%), orange (75%), red
-(120%).
+under it, the two one-way platforms are floating bone shards, and behind it all a looping
+video of the painted dragon skull, ruins and mist (see [Backdrop clip](#backdrop-clip)). The
+palette (`scripts/brawl_theme.gd`, `BrawlTheme`) is bone white over teal-grey shadows; damage
+read-outs go white, yellow (35%), orange (75%), red (120%).
+
+Match rules: 3 stocks each. A fighter whose position leaves the blast zone
+(-260, -420)..(1540, 1100) loses a stock, vanishes, and respawns at its spawn point at 0% one
+second (60 frames) later. The third KO ends the match: the win screen names the winner and
+either player's attack press starts a rematch at 3 stocks.
 
 ## Folder layout
 
 ```
 project.godot            settings, input map, physics layers, display
-scenes/Main.tscn         the arena: backdrop layer, StageArt, Mist, floor + two shards,
-                         Player1/Player2, Vfx, fight camera, vignette, medallion HUD
-scripts/main.gd          wiring: camera targets, backdrop parallax, fighter signals -> Vfx/shake
-scripts/player.gd        fighter movement, fast-fall, air friction, jump buffer, attack,
-                         percentage / take_damage(), knockback state, hitstop, respawn
+scenes/Main.tscn         the arena: VideoBackdrop, StageArt, Mist, floor + two shards,
+                         Player1/Player2, Vfx, fight camera, Match, Sfx, vignette, medallion
+                         HUD, win layer
+scripts/main.gd          wiring: camera targets, backdrop parallax, fighter and Match signals
+                         -> Vfx / shake / Sfx / HUD stocks / win screen
+scripts/player.gd        fighter movement, fast-fall, air friction, jump buffer, double jump,
+                         attack, percentage / take_damage(), knockback state, hitstop,
+                         ko() / respawn()
+scripts/match.gd         round flow: stocks, blast zone, KO -> respawn timer, win, rematch
 scripts/hitbox.gd        Area2D attack hitbox (one hit per activation, hits resolved at tick end)
 scripts/fighter_visual.gd sprite feel: idle bob, run lean, air stretch, landing squash, shadow
 scripts/fight_camera.gd  two-target camera: midpoint framing, distance zoom, shake
 scripts/stage_art.gd     procedural bone spine, ribs and shards (static _draw)
 scripts/mist.gd          drifting translucent mist blobs
 scripts/vfx.gd           hit sparks, slash arcs, landing dust (frame-counted, world space)
-scripts/hud.gd           medallion HUD: percentage labels and ring colours
+scripts/hud.gd           medallion HUD: percentage labels, ring colours, stock pips
 scripts/medallion_ring.gd coloured ring around each portrait
-scripts/brawl_theme.gd   palette constants, player_color(), percent_color()
+scripts/stock_pips.gd    row of stock diamonds under each medallion
+scripts/sfx.gd           procedural sound effects (swing, hits, jump, land, KO), six voices
+scripts/video_backdrop.gd looping muted video layer with a poster fallback
+scripts/brawl_theme.gd   palette constants, player_color(), player_name(), percent_color()
 prefabs/Player.tscn      CharacterBody2D + Sprite2D + CollisionShape2D + Hitbox (Area2D)
 prefabs/Platform.tscn    one-way StaticBody2D platform, 240x20 (no visual; StageArt draws it)
+prefabs/Sfx.tscn         Sfx node with six AudioStreamPlayer voices
+prefabs/VideoBackdrop.tscn CanvasLayer -10: poster TextureRect + VideoStreamPlayer
 assets/art-src/          generated sources: ossuary_far_1280x720.png, kage_magenta_1024.png,
                          ignis_magenta_1024.png
 assets/backdrops/        ossuary_far.png (the painted backdrop) + .import sidecar
 assets/sprites/          kage.png, ignis.png, kage_portrait.png, ignis_portrait.png + sidecars
+assets/video/            ossuary_nave.ogv (the looping backdrop) + ossuary_nave_poster.png;
+                         raw/ holds the mp4 sources (git-ignored, .gdignore)
 tools/process_art.gd     art pipeline: art-src -> backdrops + sprites + portraits
+tools/render_backdrop_clip.py  renders the looping backdrop clip from the painting
+tools/veo_backdrops.py   generates backdrop clips with Veo under a hard budget (docs/VEO.md)
+tools/convert_backdrop.sh mp4 -> Ogg Theora + poster PNG for VideoBackdrop
 tools/screenshot.gd      captures docs/screenshot-*.png from Main.tscn under Xvfb
 tests/                   headless test runner (run_tests.gd), TestContext, test_*.gd suites
 docs/                    review screenshots (docs/screenshot-*.png); .gdignore keeps Godot
@@ -115,6 +137,32 @@ $GODOT --headless --path . --import                         # refreshes the .imp
 
 The sidecars are committed, so a fresh clone needs no editor pass before running the tests.
 
+## Backdrop clip
+
+`assets/video/ossuary_nave.ogv` is an 8 s, 30 fps, 1280x720 Ogg Theora loop played muted by
+`prefabs/VideoBackdrop.tscn` on CanvasLayer -10, with `ossuary_nave_poster.png` (its first
+frame) underneath so the screen is never black. The layer's rects are 12 % larger than the
+view, which is the margin `main.gd` scrolls for parallax.
+
+The clip in the repository is rendered from the painted backdrop by
+`tools/render_backdrop_clip.py` (numpy + Pillow + ffmpeg/libx264): the painting drifts and
+breathes on a slow ellipse, two layers of periodic teal mist boil over its lower half, and
+seventy dust motes rise through it. Every motion is a sinusoid with a whole number of cycles
+per clip, so the last frame leads straight back into the first (the unit tests check the seam).
+
+```bash
+pip install numpy pillow
+python3 tools/render_backdrop_clip.py          # assets/video/raw/ossuary_nave.mp4 (~40 s)
+tools/convert_backdrop.sh assets/video/raw/ossuary_nave.mp4   # .ogv + _poster.png
+$GODOT --headless --path . --import            # refreshes the sidecars
+python3 -m unittest tools.test_render_backdrop_clip
+```
+
+A Veo-generated clip can replace it without touching the scene: `tools/veo_backdrops.py`
+calls the Gemini API's Veo models under a $28 budget enforced by a spend ledger, and
+`tools/convert_backdrop.sh` produces the same two files. See `docs/VEO.md` for the prompts,
+the budget policy and the current status (no Veo spend has happened yet: $0.00 of $28.00).
+
 ## Tunables
 
 Every physics and feel constant is an `@export`, editable per instance in the Inspector. Units:
@@ -134,7 +182,9 @@ px, px/s, px/s², physics frames at 60 Hz.
 | `fast_fall_gravity_multiplier`| 2.5     | ×        | gravity multiplier while holding down in the air, once no longer rising |
 | `fast_fall_max_speed`         | 1500.0  | px/s     | terminal velocity while fast-falling |
 | `jump_velocity`               | -620.0  | px/s     | initial vertical speed of a jump (up is negative) |
-| `jump_buffer_frames`          | 6       | frames   | a jump pressed this many frames before landing still fires |
+| `jump_buffer_frames`          | 6       | frames   | a jump pressed this many frames before landing still fires (only once the air jump is spent) |
+| `air_jumps`                   | 1       | jumps    | jumps available in the air before landing again; a fresh press each |
+| `air_jump_velocity`           | -560.0  | px/s     | vertical speed set by an air jump |
 | `attack_startup_frames`       | 3       | frames   | frames before the hitbox turns on |
 | `attack_active_frames`        | 6       | frames   | frames the hitbox is on |
 | `attack_recovery_frames`      | 10      | frames   | frames after the hitbox before another attack |
@@ -142,7 +192,14 @@ px, px/s, px/s², physics frames at 60 Hz.
 | `attack_base_knockback`       | 260.0   | px/s     | base knockback of the attack; actual = base × (victim percentage / 10) |
 | `knockback_stun_frames`       | 20      | frames   | frames a hit fighter is in the knockback state (no control) |
 | `hitstop_frames`              | 5       | frames   | frames both fighters freeze when a hitbox connects |
-| `respawn_below_y`             | 1200.0  | px       | falling past this y respawns the fighter at 0% |
+
+`scripts/match.gd` (on `Main/Match`):
+
+| Export                 | Default                      | Meaning |
+| ---------------------- | ---------------------------- | ------- |
+| `stocks_per_player`    | 3                            | stocks each fighter starts a match with |
+| `respawn_delay_frames` | 60                           | frames between a KO and the respawn at the spawn point |
+| `blast_zone`           | Rect2(-260, -420, 1800, 1520) | world-space rect; a fighter whose position leaves it is KO'd |
 
 `scripts/fight_camera.gd` (on `Main/Camera2D`):
 
@@ -191,7 +248,11 @@ floors, presses InputMap actions, steps physics frames and records `check`/`chec
 assertions. Expected values are hand-derived from the tunables above (dt = 1/60), so a change to
 a default fails the test that encodes it. `tests/test_art_assets.gd` checks the pipeline
 outputs (sizes, keyed corners, circular portraits); `tests/test_scenes.gd` checks the arena
-layers, HUD tree and camera; `tests/test_vfx_hud.gd` checks effect lifetimes and the HUD.
+layers, HUD tree and camera; `tests/test_vfx_hud.gd` checks effect lifetimes and the HUD;
+`tests/test_match.gd` drives KOs, respawns, the win screen and the rematch through
+`scenes/Main.tscn`; `tests/test_sfx.gd` and `tests/test_video_backdrop.gd` cover the sound
+renderer and the video layer. The Python tools have their own suites:
+`python3 -m unittest tools.test_veo_backdrops tools.test_render_backdrop_clip`.
 
 ## What is implemented / next steps
 
@@ -199,24 +260,26 @@ Implemented:
 
 - Two players on one keyboard or on two joypads, through the `p1_*` / `p2_*` InputMap actions.
 - Platform-fighter movement: run with separate ground and air acceleration, ground friction,
-  air friction, gravity with a terminal velocity, fast-falling (never cuts a jump short) and
-  jump buffering.
+  air friction, gravity with a terminal velocity, fast-falling (never cuts a jump short), one
+  air jump per airtime and jump buffering.
 - One attack per player with startup / active / recovery frames and an Area2D hitbox that
   hits each opponent once per swing; same-frame trades hit both fighters.
 - Combat: `percentage`, `take_damage(base_knockback, direction[, damage_amount])`, knockback
   `base × (percentage / 10)` away from the attacker with upward lift, a knockback stun state,
   and **hitstop**: both fighters freeze for `hitstop_frames` when a hitbox connects.
-- A respawn when a fighter falls off the bottom.
-- Presentation: the Wyrm's Ossuary (painted skull backdrop with parallax, procedural bone
-  spine and ribs, floating shards, drifting mist, vignette), Kage and Ignis sprites with idle
-  bob / run lean / air stretch / landing squash, a two-target fight camera with distance zoom
-  and hit shake, slash arcs, hit sparks and landing dust, and a medallion HUD with portraits,
-  names and colour-coded percentages.
+- Round flow: 3 stocks each, a blast zone on all four sides, a one-second respawn at 0%, a
+  win screen naming the winner, and a rematch on either fighter's attack press.
+- Presentation: the Wyrm's Ossuary (looping video of the painted skull with parallax,
+  procedural bone spine and ribs, floating shards, drifting mist, vignette), Kage and Ignis
+  sprites with idle bob / run lean / air stretch / landing squash, a two-target fight camera
+  with distance zoom and hit / KO shake, slash arcs, hit sparks, landing and air-jump dust, a
+  medallion HUD with portraits, names, colour-coded percentages and stock pips, and
+  procedural sound effects for swings, hits, jumps, landings and KOs.
 
 Not yet:
 
-- Stocks and blast-zone KOs on the sides and top, round flow, win screen.
-- Dodge / dash, double jump, wall slide, ledge grab.
+- Dodge / dash, wall slide, ledge grab.
 - Weapons and more than one attack per fighter.
-- More fighters (Zephyr is next) and a Veo-animated backdrop for the ossuary.
-- Sound, menus and a controls screen.
+- More fighters (Zephyr is next).
+- A Veo-generated backdrop (the pipeline is ready; see `docs/VEO.md` for why the clip in the
+  repository is rendered procedurally instead), a title screen and a controls screen.

@@ -7,13 +7,14 @@
 # Then:   $GODOT --headless --path . --import            (imports the poster PNG; Godot loads
 #                                                           .ogv directly as VideoStreamTheora)
 #
-# ffmpeg: honours $FFMPEG, else the static build bundled with the imageio_ffmpeg Python package.
+# ffmpeg: honours $FFMPEG, else the one on PATH, else the static build bundled with the
+# imageio_ffmpeg Python package.
 set -eu
 
 ROOT=$(cd "$(dirname "$0")/.." && pwd)
 RAW_DIR="$ROOT/assets/video/raw"
 OUT_DIR="$ROOT/assets/video"
-FFMPEG=${FFMPEG:-$(python3 -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())")}
+FFMPEG=${FFMPEG:-$(command -v ffmpeg || python3 -c "import imageio_ffmpeg; print(imageio_ffmpeg.get_ffmpeg_exe())")}
 # Scale to cover 1280x720 then centre-crop, so a clip of any aspect fills the frame.
 FIT="scale=1280:720:force_original_aspect_ratio=increase,crop=1280:720,setsar=1"
 

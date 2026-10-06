@@ -1,5 +1,5 @@
 extends RefCounted
-## take_damage() formula, knockback state, hitbox integration, signals and respawn.
+## take_damage() formula, knockback state, hitbox integration, signals, ko() and respawn().
 ## Expected values are hand-derived from the player.gd tunables (dt = 1/60).
 
 const FLOOR_CENTER := Vector2(600, 600)
@@ -211,25 +211,33 @@ func test_percentage_changed_signal(ctx: TestContext) -> void:
 	await ctx.step(1)
 
 
-# h. Respawn resets position, percentage and state, and tells the HUD about the 0%.
-func test_player_without_floor_respawns(ctx: TestContext) -> void:
+# h. ko() parks the fighter hidden and inert; respawn() resets position, percentage and state
+#    and tells the HUD about the 0%. A lone fighter never respawns by itself (the Match does it).
+func test_ko_and_respawn(ctx: TestContext) -> void:
 	var player := ctx.spawn_player(1, Vector2(600, 100))
 	var received: Array = []
 	player.connect(
 		"percentage_changed", func(index: int, pct: float) -> void: received.append([index, pct])
 	)
 	player.take_damage(0.0, Vector2(1, 0), 8.0)
-	var fell := await _fall_past(ctx, player, 1100.0)
-	ctx.check(fell, "player falls past y = 1100 with no floor")
-	await ctx.step(12)
-	ctx.check(player.global_position.y < 200.0, "crossing respawn_below_y 1200 returns to spawn")
+	var fell := await _fall_past(ctx, player, 1300.0)
+	ctx.check(fell, "player falls past y = 1300 with no floor and no Match")
+	player.call("ko")
+	ctx.check(not player.visible and not bool(player.get("active")), "ko() hides and deactivates")
+	ctx.check(player.global_position == Vector2(600, 100), "ko() parks the body at the spawn")
+	await ctx.step(10)
+	ctx.check(player.global_position == Vector2(600, 100), "a KO'd fighter does not fall")
+	player.call("respawn")
+	ctx.check(player.visible and bool(player.get("active")), "respawn() shows and reactivates")
 	ctx.check_near(player.get("percentage"), 0.0, 0.01, "respawn resets percentage to 0")
 	ctx.check(player.get("state") == Player.State.NORMAL, "respawn resets state to NORMAL")
-	ctx.check(player.velocity.y < 200.0, "respawn resets velocity (was falling at 900 px/s)")
+	ctx.check(player.velocity == Vector2.ZERO, "respawn resets velocity (was falling at 900)")
 	ctx.check(
-		received == [[1, 8.0], [1, 0.0]],
-		"respawn emits percentage_changed(1, 0.0) after the hit's (1, 8.0) (got %s)" % [received]
+		received == [[1, 8.0], [1, 0.0], [1, 0.0]],
+		"ko() and respawn() each emit percentage_changed(1, 0.0) (got %s)" % [received]
 	)
+	await ctx.step(1)
+	ctx.check(player.velocity.y > 0.0, "the respawned fighter falls again (physics resumed)")
 
 
 # i. Kept from the movement slice.
@@ -331,24 +339,17 @@ func test_hitbox_is_on_for_active_frames(ctx: TestContext) -> void:
 	)
 
 
-# l. Falling off mid-swing: the respawned fighter has no live hitbox and no stale recovery.
+# l. KO'd mid-swing: the respawned fighter has no live hitbox and no stale recovery.
 func test_respawn_cancels_attack_in_progress(ctx: TestContext) -> void:
 	var player := ctx.spawn_player(1, Vector2(600, 100))
 	var hitbox_shape: CollisionShape2D = player.get_node("Hitbox/CollisionShape2D")
-	var fell := await _fall_past(ctx, player, 1150.0)
-	ctx.check(fell, "player falls past y = 1150 with no floor")
-	# Falling at max_fall_speed (15 px/frame) it crosses respawn_below_y 1200 within 4 frames,
-	# before or during the 3 startup frames of this swing.
+	await ctx.step(5)
+	# The KO lands during the 3 startup frames of this swing.
 	ctx.press("p1_attack")
 	await ctx.step(1)
 	ctx.release("p1_attack")
-	var respawned := false
-	for _frame in range(6):
-		await ctx.step(1)
-		if player.global_position.y < 200.0:
-			respawned = true
-			break
-	ctx.check(respawned, "player respawns within 6 frames of the attack press")
+	player.call("ko")
+	player.call("respawn")
 	var stayed_disabled := hitbox_shape.disabled
 	for _frame in range(8):
 		await ctx.step(1)

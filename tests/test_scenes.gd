@@ -105,15 +105,28 @@ func test_ossuary_layers_are_present(ctx: TestContext) -> void:
 	if main == null:
 		return
 	await ctx.step(1)
-	var backdrop_layer := main.get_node_or_null("BackdropLayer") as CanvasLayer
+	var backdrop := main.get_node_or_null("VideoBackdrop") as CanvasLayer
 	ctx.check(
-		backdrop_layer != null and backdrop_layer.layer == -10,
-		"BackdropLayer is a CanvasLayer at layer -10"
+		backdrop != null and backdrop.layer == -10 and backdrop.get_index() == 0,
+		"VideoBackdrop is Main's first child, a CanvasLayer at layer -10"
 	)
-	var backdrop := main.get_node_or_null("BackdropLayer/Backdrop") as Sprite2D
+	var video := main.get_node_or_null("VideoBackdrop/Player") as VideoStreamPlayer
 	ctx.check(
-		backdrop != null and backdrop.texture != null and backdrop.scale == Vector2(1.12, 1.12),
-		"Backdrop sprite carries the ossuary painting at scale 1.12"
+		(
+			video != null
+			and video.stream != null
+			and video.stream.resource_path.ends_with("ossuary_nave.ogv")
+		),
+		"VideoBackdrop streams assets/video/ossuary_nave.ogv"
+	)
+	var poster := main.get_node_or_null("VideoBackdrop/Poster") as TextureRect
+	ctx.check(
+		(
+			poster != null
+			and poster.texture != null
+			and poster.texture.resource_path.ends_with("ossuary_nave_poster.png")
+		),
+		"VideoBackdrop's poster is the clip's first frame"
 	)
 	ctx.check(main.get_node_or_null("StageArt") is Node2D, "StageArt Node2D draws the bone stage")
 	ctx.check(main.get_node_or_null("Mist") is Node2D, "Mist Node2D drifts over the stage")
@@ -182,6 +195,12 @@ func test_hud_medallions_match_contract(ctx: TestContext) -> void:
 		var percent := main.get_node_or_null(base + "%sLabel" % row[0]) as Label
 		ctx.check(percent != null and percent.text == "0%", "%sLabel starts at 0%%" % row[0])
 	ctx.check(main.get_node_or_null("HUD/Root/Controls") is Label, "HUD has a Controls label")
+	for index: int in [1, 2]:
+		var pips := main.get_node_or_null("HUD/Root/P%dMedallion/Stocks" % index)
+		ctx.check(
+			pips is Control and pips.get("color") == BrawlTheme.player_color(index),
+			"P%dMedallion/Stocks pips wear the player colour" % index
+		)
 
 
 func test_hud_label_tracks_player_percentage(ctx: TestContext) -> void:

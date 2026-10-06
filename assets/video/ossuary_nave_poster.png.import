@@ -2,16 +2,16 @@
 
 importer="texture"
 type="CompressedTexture2D"
-uid="uid://dxdkug725iggs"
-path="res://.godot/imported/test_pattern_poster.png-18554a12f0b60405abb6751130f9a3ad.ctex"
+uid="uid://d31xhdv4l78b3"
+path="res://.godot/imported/ossuary_nave_poster.png-685f2ea20fdab2fb1843a4726d6d9ced.ctex"
 metadata={
 "vram_texture": false
 }
 
 [deps]
 
-source_file="res://assets/video/test_pattern_poster.png"
-dest_files=["res://.godot/imported/test_pattern_poster.png-18554a12f0b60405abb6751130f9a3ad.ctex"]
+source_file="res://assets/video/ossuary_nave_poster.png"
+dest_files=["res://.godot/imported/ossuary_nave_poster.png-685f2ea20fdab2fb1843a4726d6d9ced.ctex"]
 
 [params]
 

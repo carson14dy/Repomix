@@ -21,6 +21,10 @@ static func player_color(index: int) -> Color:
 	return P2_COLOR if index == 2 else P1_COLOR
 
 
+static func player_name(index: int) -> String:
+	return "Ignis" if index == 2 else "Kage"
+
+
 ## Damage read-out colour: white < 35, yellow < 75, orange < 120, red above.
 static func percent_color(percentage: float) -> Color:
 	if percentage < 35.0:

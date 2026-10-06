@@ -1,5 +1,7 @@
 # Godot 4 editor cache and imported resources
 .godot/
+# Raw Veo / rendered clips (tools/convert_backdrop.sh turns them into assets/video/*.ogv)
+assets/video/raw/*.mp4
 # Export output and profiling
 export/
 *.tmp

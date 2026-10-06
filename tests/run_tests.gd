@@ -42,6 +42,9 @@ func _run_all() -> void:
 		push_error("No tests/test_*.gd files found")
 		quit(1)
 		return
+	# Start inside a physics step like every later test does (teardown awaits physics frames):
+	# a node added before the first tick would otherwise see one frame fewer than expected.
+	await physics_frame
 	for path in files:
 		var script: GDScript = load(path)
 		if script == null or not script.can_instantiate():

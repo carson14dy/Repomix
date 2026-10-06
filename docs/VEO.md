@@ -1,13 +1,43 @@
-# Veo backdrop clips
+# Backdrop clips: Veo and the procedural fallback
 
-Looping video backdrops for the Wyrm's Ossuary stage, generated with the Gemini API's Veo
-models, converted to Ogg Theora, and played by `prefabs/VideoBackdrop.tscn` behind the fight.
+Looping video backdrops for the Wyrm's Ossuary stage, converted to Ogg Theora and played by
+`prefabs/VideoBackdrop.tscn` behind the fight. Two ways to produce the raw clip:
 
 ```
-tools/veo_prompts.json   --veo_backdrops.py-->  assets/video/raw/<name>.mp4
-                         --convert_backdrop.sh-->  assets/video/<name>.ogv + <name>_poster.png
-                         --VideoBackdrop.tscn-->  CanvasLayer -10 in scenes/Main.tscn
+tools/veo_prompts.json   --veo_backdrops.py-------->  assets/video/raw/<name>.mp4
+assets/backdrops/*.png   --render_backdrop_clip.py-->  assets/video/raw/<name>.mp4
+                         --convert_backdrop.sh------>  assets/video/<name>.ogv + <name>_poster.png
+                         --VideoBackdrop.tscn------->  CanvasLayer -10 in scenes/Main.tscn
 ```
+
+## Status
+
+* **Shipped clip:** `assets/video/ossuary_nave.ogv` is rendered by
+  `tools/render_backdrop_clip.py` from the painted backdrop (section 0 below), not by Veo.
+* **Veo spend:** $0.00 of the $28.00 budget. `tools/veo_spend.json` does not exist yet because
+  no generation has been started; the script treats a missing ledger as $0.
+* **Why:** every Veo route was closed from the cloud session that finished the game. The
+  project's Veo MCP server (`.mcp.json`, `veo.mcp.acedata.cloud`) and the Gemini API host
+  are refused by the session's egress proxy (HTTP 403 on CONNECT), no `GEMINI_API_KEY` or
+  `ACEDATA_API_KEY` was present, and the Composio connector lists its Gemini video tools as
+  restricted. Nothing in the pipeline depends on the session: run section 1 on a machine
+  with a key and the stage picks the clip up as a file swap.
+
+## 0. Render without Veo (`tools/render_backdrop_clip.py`)
+
+```bash
+pip install numpy pillow                          # plus an ffmpeg with libx264 on PATH
+python3 tools/render_backdrop_clip.py             # assets/video/raw/ossuary_nave.mp4, ~40 s
+python3 tools/render_backdrop_clip.py --seconds 8 --fps 30 --seed 7 --source assets/backdrops/ossuary_far.png
+python3 -m unittest tools.test_render_backdrop_clip
+```
+
+The painting drifts on a 14x8 px ellipse with a 1.5 % zoom pulse, its brightness flickers by
+4 %, two layers of mist (sums of sinusoids with integer wave numbers across the frame and an
+integer number of cycles per clip) boil over the lower half in `BrawlTheme.MIST` teal, and 70
+dust motes rise a whole number of screen heights per clip. Because every term is periodic in
+the clip length, frame `seconds` equals frame 0 and the loop has no seam; the unit test checks
+exactly that, plus determinism for a given `--seed`.
 
 ## 1. Generate (`tools/veo_backdrops.py`)
 
@@ -89,46 +119,35 @@ $GODOT --headless --path . --import             # imports the poster PNGs
 ```
 
 Each clip becomes `assets/video/<name>.ogv` (1280x720, no audio, libtheora `-q:v 7`) and
-`assets/video/<name>_poster.png` (first frame, 1280x720). ffmpeg comes from `$FFMPEG` or the
-static binary bundled with the `imageio_ffmpeg` Python package. Godot 4.4 loads `.ogv` directly
-as `VideoStreamTheora` (no `.import` sidecar is produced; only the PNG is imported).
+`assets/video/<name>_poster.png` (first frame, 1280x720). Godot 4.4 loads `.ogv` directly as
+`VideoStreamTheora` (only a `.uid` sidecar is produced; the PNG gets a `.import`).
 
-`assets/video/test_pattern.ogv` + `_poster.png` is a 2 s ffmpeg `testsrc` clip kept so the
-Godot test suite always has a real Theora stream; replace the default paths with a real clip
-when wiring.
+ffmpeg comes from `$FFMPEG`, else the one on `PATH`, else the static binary bundled with the
+`imageio_ffmpeg` Python package.
 
 ## 3. Play (`prefabs/VideoBackdrop.tscn`, `scripts/video_backdrop.gd`)
 
 A `CanvasLayer` at `layer -10` containing, in draw order:
 
-* `Poster` – `TextureRect`, 1280x720, shows `poster_path`. Always visible, so there is never a
-  black frame while the first video frame decodes.
-* `Player` – `VideoStreamPlayer`, 1280x720, `expand`, `loop`, `autoplay`, `volume_db -80`.
+* `Poster` – `TextureRect`, 1434x806 at (-77, -43), shows `poster_path`. Always visible, so
+  there is never a black frame while the first video frame decodes.
+* `Player` – `VideoStreamPlayer`, same rect, `expand`, `loop`, `autoplay`, `volume_db -80`.
   `_ready()` loads `stream_path`; when the file is missing or fails to load the player is hidden
   and the poster stays (no engine errors: the script checks `ResourceLoader.exists()` first).
 
-Exports: `stream_path` (default `res://assets/video/test_pattern.ogv`) and `poster_path`
-(default `res://assets/video/test_pattern_poster.png`).
+Exports: `stream_path` (default `res://assets/video/ossuary_nave.ogv`) and `poster_path`
+(default `res://assets/video/ossuary_nave_poster.png`).
 
 Test: `TEST_FILTER=test_video_backdrop $GODOT --headless --path . --fixed-fps 60 --script tests/run_tests.gd`.
 
-### WIRING NEEDED (lead)
+### Wiring
 
-`scenes/Main.tscn` currently has a static `BackdropLayer` (CanvasLayer -10 with the painted
-`Backdrop` Sprite2D). To use a video backdrop, either replace it or put the video under it:
+`VideoBackdrop` is the first child of `Main` in `scenes/Main.tscn` with `stream_path`
+`res://assets/video/ossuary_nave.ogv` and the matching poster; the old static painting layer is
+gone (the poster keeps the never-black guarantee). Both rects are 1434x806 at (-77, -43), a
+12 % margin that `main.gd` scrolls for parallax. `tests/test_scenes.gd` asserts the wiring and
+`tests/test_video_backdrop.gd` the prefab. `assets/video/raw/*.mp4` is git-ignored.
 
-1. Add an ext_resource: `[ext_resource type="PackedScene" path="res://prefabs/VideoBackdrop.tscn" id="13_video_backdrop"]`
-2. Add, as the **first child** of `Main` (before `BackdropLayer`):
-
-   ```
-   [node name="VideoBackdrop" parent="." instance=ExtResource("13_video_backdrop")]
-   stream_path = "res://assets/video/ossuary_nave.ogv"
-   poster_path = "res://assets/video/ossuary_nave_poster.png"
-   ```
-
-3. Then either delete `BackdropLayer` (the poster takes over the never-black guarantee), or keep
-   it and set `VideoBackdrop.layer = -11` so the painting draws over the video while the mist
-   layer stays on top. `tests/test_scenes.gd::test_ossuary_layers_are_present` asserts that
-   `BackdropLayer` exists at layer -10 with the painting at scale 1.12, so deleting it needs that
-   test updated too.
-4. Add `assets/video/raw/*.mp4` to `.gitignore` (raw Veo output is large and not used at runtime).
+To swap in a Veo clip: generate it under the same name (`ossuary_nave`), run
+`tools/convert_backdrop.sh`, `--import`, run the suite, and commit the `.ogv`, the poster and
+its `.import` sidecar together with `tools/veo_spend.json`.

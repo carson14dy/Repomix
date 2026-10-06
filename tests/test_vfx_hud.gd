@@ -5,6 +5,7 @@ extends RefCounted
 const MAIN_SCENE_PATH := "res://scenes/Main.tscn"
 const HUD_SCRIPT_PATH := "res://scripts/hud.gd"
 const RING_SCRIPT_PATH := "res://scripts/medallion_ring.gd"
+const PIPS_SCRIPT_PATH := "res://scripts/stock_pips.gd"
 
 
 func test_hit_spark_lives_nine_frames(ctx: TestContext) -> void:
@@ -77,9 +78,14 @@ func _build_hud(ctx: TestContext, with_medallions: bool) -> Dictionary:
 			ring.name = "Ring"
 			ring.set_script(load(RING_SCRIPT_PATH))
 			medallion.add_child(ring)
+			var pips := Control.new()
+			pips.name = "Stocks"
+			pips.set_script(load(PIPS_SCRIPT_PATH))
+			medallion.add_child(pips)
 			root.add_child(medallion)
 			nodes["label%d" % index] = label
 			nodes["ring%d" % index] = ring
+			nodes["pips%d" % index] = pips
 	layer.add_child(root)
 	return nodes
 
@@ -112,6 +118,12 @@ func test_hud_labels_and_rings_follow_percentage(ctx: TestContext) -> void:
 	ctx.check(
 		hud["ring1"].get("ring_color") == BrawlTheme.PERCENT_ORANGE, "P1 ring turns orange at 80"
 	)
+	ctx.check(
+		hud["pips2"].get("color") == BrawlTheme.P2_COLOR, "the HUD paints P2's stock pips crimson"
+	)
+	hud["main"].get_node("HUD/Root").call("set_stocks", 2, 1)
+	ctx.check(int(hud["pips2"].get("stocks")) == 1, "set_stocks(2, 1) reaches P2's pips")
+	ctx.check(int(hud["pips1"].get("stocks")) == 3, "P1's pips are untouched")
 
 
 func test_hud_without_medallions_reports_and_survives(ctx: TestContext) -> void:

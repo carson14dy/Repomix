@@ -10,8 +10,8 @@ config_version=5
 
 [application]
 
-config/name="Skyfall Brawl"
-config/description="A local-multiplayer 2D platform fighter. Two players, one keyboard (or one controller each)."
+config/name="BrawlCrypt"
+config/description="BrawlCrypt: a local-multiplayer 2D gothic platform fighter. Two players, one keyboard (or one controller each)."
 config/version="0.1.0"
 run/main_scene="res://scenes/Main.tscn"
 config/features=PackedStringArray("4.4", "GL Compatibility")

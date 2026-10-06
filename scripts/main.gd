@@ -1,5 +1,5 @@
 extends Node2D
-## Test arena: wires each Player's damage_changed signal to its HUD label.
+## Test arena: wires each Player's percentage_changed signal to its HUD label.
 
 @onready var _labels: Dictionary = {
 	1: $HUD/P1Label as Label,
@@ -9,9 +9,9 @@ extends Node2D
 
 func _ready() -> void:
 	for player: Node in [$Player1, $Player2]:
-		player.connect("damage_changed", _on_damage_changed)
+		player.connect("percentage_changed", _on_percentage_changed)
 
 
-func _on_damage_changed(player_index: int, damage: float) -> void:
+func _on_percentage_changed(player_index: int, percentage: float) -> void:
 	var label: Label = _labels[player_index]
-	label.text = "P%d  %d%%" % [player_index, roundi(damage)]
+	label.text = "P%d  %d%%" % [player_index, roundi(percentage)]

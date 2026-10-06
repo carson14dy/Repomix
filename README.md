@@ -43,7 +43,7 @@ needs no code changes. Joypad bindings are per device: device 0 drives P1, devic
 ```
 project.godot          settings, input map, physics layers, display
 scenes/Main.tscn       the arena: floor, two platforms, Player1/Player2, camera, HUD
-scripts/main.gd        HUD wiring (damage_changed -> labels)
+scripts/main.gd        HUD wiring (percentage_changed -> labels)
 scripts/player.gd      fighter movement, fast-fall, air friction, jump buffer, attack
 scripts/hitbox.gd      Area2D attack hitbox (one hit per activation)
 prefabs/Player.tscn    CharacterBody2D + Sprite2D + CollisionShape2D + Hitbox (Area2D)
@@ -79,9 +79,9 @@ Inspector. Units: px, px/s, px/s², physics frames at 60 Hz.
 | `attack_startup_frames`       | 3       | frames   | frames before the hitbox turns on |
 | `attack_active_frames`        | 6       | frames   | frames the hitbox is on |
 | `attack_recovery_frames`      | 10      | frames   | frames after the hitbox before another attack |
-| `attack_damage`               | 8.0     | %        | damage added per hit |
-| `attack_base_knockback`       | 260.0   | px/s     | knockback speed at 0% |
-| `attack_knockback_scaling`    | 7.0     | px/s per % | knockback speed = base + scaling × victim damage (after the hit) |
+| `attack_damage`               | 8.0     | %        | percentage added per hit |
+| `attack_base_knockback`       | 260.0   | px/s     | base knockback of the attack; actual = base × (victim percentage / 10) |
+| `knockback_stun_frames`       | 20      | frames   | frames a hit fighter is in the knockback state (no control) |
 | `respawn_below_y`             | 1200.0  | px       | falling past this y respawns the fighter at 0% |
 
 ## Tests and static checks
@@ -126,9 +126,22 @@ Implemented:
   longer rising multiplies gravity and raises the fall cap; it never cuts a jump short), and
   **jump buffering** (a jump pressed up to 6 frames
   before landing fires on the landing frame).
-- One attack per player with startup / active / recovery frame counters, an Area2D hitbox that
-  hits each opponent once per swing, damage percentages, knockback that scales with damage,
-  a respawn when a fighter falls off the bottom, and a HUD showing both damages.
+- One attack per player with startup / active / recovery frame counters and an Area2D hitbox
+  that hits each opponent once per swing.
+- Combat: each `Player` has a `percentage` (read-only from outside) and
+  `take_damage(base_knockback, direction[, damage_amount = 10.0])`. A hit adds `damage_amount`
+  to the percentage, then launches the fighter along the normalized `direction` at
+  `actual_knockback = base_knockback * (percentage / 10.0)` (percentage after the hit; a zero
+  direction launches straight up). The hitbox calls it with its attack's damage and a direction
+  away from the attacker with upward lift, `normalize(±1, -0.75)`.
+- Knockback state: `take_damage` puts the fighter in `State.KNOCKBACK` for
+  `knockback_stun_frames` physics frames. While stunned all input is ignored (no run, jump,
+  attack or fast-fall), an attack in progress is cancelled, gravity still applies, the launch
+  is not damped in the air (ground friction only while grounded), the sprite is tinted red and
+  the fall-off respawn still runs. The state returns to `NORMAL` on its own; `respawn()` also
+  resets it and the percentage to 0.
+- A respawn when a fighter falls off the bottom, and a HUD showing both percentages
+  (`percentage_changed(player_index, percentage)` -> labels in `scripts/main.gd`).
 - One-way platforms and a floor on a dark arena, two placeholder fighter sprites.
 
 Not yet:

@@ -1,6 +1,6 @@
 extends RefCounted
 ## scenes/Main.tscn and prefabs/Platform.tscn load and are wired as the contract says:
-## two indexed players standing on the floor, one-way platforms, HUD labels bound to damage.
+## two indexed players standing on the floor, one-way platforms, HUD labels bound to percentage.
 
 const MAIN_SCENE_PATH := "res://scenes/Main.tscn"
 
@@ -100,7 +100,7 @@ func test_platform_prefab_shape_matches_contract(ctx: TestContext) -> void:
 	)
 
 
-func test_hud_label_tracks_player_damage(ctx: TestContext) -> void:
+func test_hud_label_tracks_player_percentage(ctx: TestContext) -> void:
 	var main := _spawn_main(ctx)
 	if main == null:
 		return
@@ -111,11 +111,11 @@ func test_hud_label_tracks_player_damage(ctx: TestContext) -> void:
 	ctx.check(p2_label != null and p2_label.text == "P2  0%", "P2Label starts at 'P2  0%'")
 	ctx.check(main.get_node_or_null("HUD/Controls") is Label, "HUD has a Controls label")
 	var p2 := main.get_node("Player2") as CharacterBody2D
-	p2.call("take_hit", 0.0, 8.0, 260.0, 7.0)
+	p2.call("take_damage", 260.0, Vector2(1, 0), 8.0)
 	await ctx.step(1)
 	ctx.check(
 		p2_label != null and p2_label.text.contains("8%"),
-		"P2Label shows 8% after Player2.take_hit (unconnected damage_changed breaks this)"
+		"P2Label shows 8% after Player2.take_damage (unconnected percentage_changed breaks this)"
 	)
 	ctx.check(
 		p1_label != null and p1_label.text == "P1  0%",

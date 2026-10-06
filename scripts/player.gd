@@ -3,8 +3,10 @@ extends CharacterBody2D
 ## One local fighter. All input goes through InputMap actions "p%d_<name>" so two players
 ## share one keyboard (or one joypad each) without any raw key reads.
 
-signal damage_changed(player_index: int, damage: float)
+signal percentage_changed(player_index: int, percentage: float)
 signal hit_landed(attacker_index: int, victim_index: int)
+
+enum State { NORMAL, KNOCKBACK }
 
 @export_range(1, 2) var player_index: int = 1
 @export_enum("Right:1", "Left:-1") var start_facing: int = 1
@@ -33,14 +35,18 @@ signal hit_landed(attacker_index: int, victim_index: int)
 @export var attack_recovery_frames: int = 10
 @export var attack_damage: float = 8.0
 @export var attack_base_knockback: float = 260.0
-## Knockback speed = base + scaling * victim damage (after this hit is added).
-@export var attack_knockback_scaling: float = 7.0
+
+@export_group("Knockback", "")
+## Physics frames a hit fighter has no control over movement, jumping or attacking.
+@export var knockback_stun_frames: int = 20
 
 @export_group("Stage", "")
 @export var respawn_below_y: float = 1200.0
 
-## Accumulated damage percent; read-only from outside, changed via take_hit()/respawn().
-var damage: float = 0.0
+## Accumulated damage percent; read-only from outside, changed via take_damage()/respawn().
+var percentage: float = 0.0
+## Read-only from outside; KNOCKBACK is entered by take_damage() and times out on its own.
+var state: State = State.NORMAL
 ## 1 = right, -1 = left.
 var facing: int = 1
 
@@ -51,6 +57,7 @@ var _jump_held: bool = false
 var _attack_held: bool = false
 ## Frames left in the current attack (startup + active + recovery); 0 = not attacking.
 var _attack_frames_left: int = 0
+var _stun_frames_left: int = 0
 
 @onready var _sprite: Sprite2D = $Sprite2D
 @onready var _hitbox: Hitbox = $Hitbox
@@ -75,36 +82,44 @@ func _physics_process(delta: float) -> void:
 	# Reflects the previous frame's move_and_slide; read before moving.
 	var on_floor := is_on_floor()
 
-	_apply_horizontal(axis, on_floor, delta)
-	if not on_floor:
-		_apply_gravity(down_held, delta)
-	_apply_jump(jump_pressed, on_floor)
-	_apply_attack(attack_pressed)
+	match state:
+		State.NORMAL:
+			_apply_horizontal(axis, on_floor, delta)
+			if not on_floor:
+				_apply_gravity(down_held, delta)
+			_apply_jump(jump_pressed, on_floor)
+			_apply_attack(attack_pressed)
+		State.KNOCKBACK:
+			_apply_knockback(on_floor, delta)
 
 	move_and_slide()
 
-	if axis != 0.0:
+	if state == State.NORMAL and axis != 0.0:
 		facing = signi(int(signf(axis)))
 		_apply_facing()
 	if global_position.y > respawn_below_y:
 		respawn()
 
 
-func take_hit(
-	from_x: float, damage_amount: float, base_knockback: float, knockback_scaling: float
-) -> void:
-	damage += damage_amount
-	var dir := 1.0 if global_position.x >= from_x else -1.0
-	var speed := base_knockback + knockback_scaling * damage
-	velocity = Vector2(dir, -0.75).normalized() * speed
-	damage_changed.emit(player_index, damage)
+## Knockback speed = base_knockback * (percentage / 10), with this hit's damage already added.
+## The hit launches the fighter along `direction` and starts the knockback stun.
+func take_damage(base_knockback: float, direction: Vector2, damage_amount: float = 10.0) -> void:
+	percentage += damage_amount
+	var actual_knockback := base_knockback * (percentage / 10.0)
+	var dir := direction.normalized() if direction.length_squared() > 0.0 else Vector2.UP
+	velocity = dir * actual_knockback
+	_enter_knockback()
+	percentage_changed.emit(player_index, percentage)
 
 
 func respawn() -> void:
 	global_position = _spawn_position
 	velocity = Vector2.ZERO
-	damage = 0.0
-	damage_changed.emit(player_index, damage)
+	percentage = 0.0
+	state = State.NORMAL
+	_stun_frames_left = 0
+	_sprite.modulate = Color.WHITE
+	percentage_changed.emit(player_index, percentage)
 
 
 func _apply_horizontal(axis: float, on_floor: bool, delta: float) -> void:
@@ -145,9 +160,30 @@ func _apply_attack(attack_pressed: bool) -> void:
 		return
 	_attack_frames_left -= 1
 	if _attack_frames_left == attack_active_frames + attack_recovery_frames:
-		_hitbox.activate(
-			attack_active_frames, attack_damage, attack_base_knockback, attack_knockback_scaling
-		)
+		_hitbox.activate(attack_active_frames, attack_damage, attack_base_knockback)
+
+
+func _enter_knockback() -> void:
+	state = State.KNOCKBACK
+	_stun_frames_left = knockback_stun_frames
+	_jump_buffer = 0
+	_attack_frames_left = 0
+	_hitbox.deactivate()
+	_sprite.modulate = Color(1.0, 0.6, 0.6)
+
+
+## No input while stunned. is_on_floor() still reports last frame's contact, so a fighter
+## launched upward counts as airborne right away (decision: gravity, no friction, so the
+## launch is never damped); grounded knockback slides out under ground_friction.
+func _apply_knockback(on_floor: bool, delta: float) -> void:
+	if on_floor and velocity.y >= 0.0:
+		velocity.x = move_toward(velocity.x, 0.0, ground_friction * delta)
+	else:
+		_apply_gravity(false, delta)
+	_stun_frames_left -= 1
+	if _stun_frames_left <= 0:
+		state = State.NORMAL
+		_sprite.modulate = Color.WHITE
 
 
 func _apply_facing() -> void:
